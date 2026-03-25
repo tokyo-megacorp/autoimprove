@@ -1,0 +1,54 @@
+project:
+  name: test-project
+  path: .
+
+budget:
+  max_experiments_per_session: 5
+
+gates:
+  - name: tests
+    command: node --test test/*.test.js
+
+benchmarks:
+  - name: project-metrics
+    type: script
+    command: bash benchmark/metrics.sh
+    metrics:
+      - name: test_count
+        extract: "json:.test_count"
+        direction: higher_is_better
+        tolerance: 0.0
+        significance: 0.05
+      - name: todo_count
+        extract: "json:.todo_count"
+        direction: lower_is_better
+        tolerance: 0.0
+        significance: 0.10
+      - name: test_ratio
+        extract: "json:.test_ratio"
+        direction: higher_is_better
+        tolerance: 0.05
+        significance: 0.05
+
+themes:
+  auto:
+    strategy: weighted_random
+    priorities:
+      failing_tests: 5
+      todo_comments: 3
+      coverage_gaps: 2
+    cooldown_per_theme: 1
+
+constraints:
+  trust_ratchet:
+    tier_0: { max_files: 3, max_lines: 150, mode: auto_merge }
+  forbidden_paths:
+    - autoimprove.yaml
+    - benchmark/**
+  test_modification: additive_only
+
+safety:
+  epoch_drift_threshold: 0.10
+  regression_tolerance: 0.0
+  significance_threshold: 0.05
+  stagnation_window: 3
