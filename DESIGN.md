@@ -97,6 +97,73 @@ LOOP:
   → LOOP
 ```
 
+### Constraint Philosophy: Verifiability, Not Scope
+
+autoresearch has NO line limit. The agent can rewrite all 630 lines of `train.py`. The safety net is the reset mechanism (git reset on regression), not the scope limit. The constraint is *temporal* (5-minute training budget), not *spatial* (number of lines).
+
+autoimprove adopts the same philosophy: **the real constraint is verifiability, not scope.** A well-tested 20-file refactor is safer than an untested 2-line change. File/line limits are soft guidance for the experimenter, not hard gates. The hard gates are: tests pass, coverage gate passes, no regressions. If a large change survives all gates, it deserves to be kept.
+
+### Trust Escalation Ratchet
+
+Instead of static constraint tiers, the system earns scope through demonstrated competence:
+
+```
+Tier 0 (cold start):     3 files, 150 lines   — auto-merge
+Tier 1 (after 5 keeps):  6 files, 300 lines   — auto-merge
+Tier 2 (after 15 keeps): 10 files, 500 lines  — auto-merge
+Tier 3 (ambitious):      no scope limit        — propose-only, human reviews
+```
+
+- Tiers escalate after N consecutive successful merges with zero regressions
+- Any regression resets the ratchet one tier down
+- Tier 3 changes are never auto-merged — they're queued as proposals for morning review
+- The significance threshold scales with tier: 1% → 2% → 3% → human judgment
+
+### Phase Transitions
+
+The system operates in three phases. Transitions are triggered by keep-rate metrics:
+
+**Phase 1: Grind** (autonomous)
+- Small-to-medium changes, auto-merged on success
+- Morning report = commit log of kept/discarded experiments
+- This is the core loop described above
+
+**Phase 2: Propose** (human-approved)
+- Triggered when: keep rate drops below 25% for 3 consecutive sessions, or all themes stagnate
+- The system drafts larger changes as structured proposals, never auto-merges
+- Morning report = proposal queue with rationale, scope, risk assessment
+- Human approves/rejects/defers each proposal
+- Approved proposals become next Grind targets with expanded limits
+
+```
+PROPOSAL #1: Extract authentication middleware
+  Scope: 4 files, ~200 lines affected
+  Rationale: auth logic duplicated in 6 route handlers
+  Risk: medium — touches request pipeline
+  Estimated effort: 2 experiments
+  [APPROVE] [REJECT] [DEFER]
+```
+
+**Phase 3: Research** (investigation)
+- Triggered when: proposal backlog is empty, or manually
+- No code changes. No keep/discard. Pure analysis
+- The system reads the codebase end-to-end, maps dependencies, measures things
+- Morning report = analyst memo
+
+```
+RESEARCH REPORT: Dependency Structure
+  - 3 circular imports detected (files: X, Y, Z)
+  - Module `utils` imported by 34 files but has no tests
+  - Config loading happens in 5 different places
+  - Oldest untouched file: parser.py (187 days)
+```
+
+**Phase transitions:**
+- Grind → Propose: automatic, triggered by stagnation metrics
+- Propose → Research: manual, or when proposal backlog is empty
+- Research → Propose: manual (human reads report, decides what to investigate)
+- Any → Grind: after major merge, or after 30+ days (codebase has drifted)
+
 ## Configuration: `autoimprove.yaml`
 
 Lives in the project root. This is the `program.md` equivalent — the human-editable file that programs the researcher.
@@ -187,21 +254,31 @@ themes:
       scope: "src/**/*"
       instruction: "Reduce allocations, batch operations, optimize hot paths"
 
-# --- CONSTRAINTS ---
+# --- CONSTRAINTS (soft guidance — hard gate is verifiability) ---
 constraints:
-  default:
-    max_files_changed: 3
-    max_lines_changed: 150
-    significance_threshold: 0.01
-  refactor:  # relaxed tier for cross-boundary changes
-    max_files_changed: 6
-    max_lines_changed: 300
-    significance_threshold: 0.03
+  trust_ratchet:
+    tier_0: { max_files: 3, max_lines: 150, significance: 0.01, mode: auto_merge }
+    tier_1: { max_files: 6, max_lines: 300, significance: 0.02, mode: auto_merge, after_keeps: 5 }
+    tier_2: { max_files: 10, max_lines: 500, significance: 0.03, mode: auto_merge, after_keeps: 15 }
+    tier_3: { max_files: null, max_lines: null, significance: null, mode: propose_only }
+    regression_penalty: -1  # drop one tier on any regression
   forbidden_paths:
     - autoimprove.yaml
     - test/benchmarks/**
     - test/fixtures/**
+  test_modification: additive_only  # can add tests, cannot delete or weaken assertions
   require_commit_message: true
+
+# --- PHASES ---
+phases:
+  grind:
+    active: true  # starts here
+    stagnation_threshold: 0.25  # keep rate below 25% for 3 sessions → transition
+    stagnation_sessions: 3
+  propose:
+    max_proposals_per_session: 5
+  research:
+    trigger: manual  # or "auto" when proposal backlog is empty
 
 # --- SAFETY ---
 safety:
@@ -283,24 +360,29 @@ autoimprove/
   .claude-plugin/
     plugin.json
     skills/
-      autoimprove.md          # main loop skill
+      autoimprove.md          # main loop skill (orchestrator)
       autoimprove-init.md     # scaffold autoimprove.yaml for a new project
-      autoimprove-report.md   # analyze experiments.tsv, show trends
+      autoimprove-report.md   # morning report: grind log / proposal queue / research memo
     agents/
-      experimenter.md         # the agent that runs inside each worktree
+      experimenter.md         # the agent that runs inside each worktree (grind phase)
+      proposer.md             # drafts larger changes as proposals (propose phase)
+      researcher.md           # investigates codebase, writes reports (research phase)
     commands/
-      autoimprove-run.md      # start a session (long-running)
-      autoimprove-status.md   # check running session
-      autoimprove-history.md  # browse experiment log
+      autoimprove-run.md      # start a session: /autoimprove run [--phase grind|propose|research]
+      autoimprove-status.md   # check running session + current trust tier
+      autoimprove-history.md  # browse experiment log with filtering
+      autoimprove-proposals.md # review/approve/reject pending proposals
 ```
 
 ### Commands
 
-- `/autoimprove run` — Start an improvement session. Options: `--experiments N`, `--theme <name>`, `--budget $N`
-- `/autoimprove run --theme auto` — Auto-select themes based on weighted strategy
-- `/autoimprove status` — Check running session progress
-- `/autoimprove report` — Morning review of overnight results
+- `/autoimprove run` — Start a grind session. Options: `--experiments N`, `--theme <name>`, `--budget $N`
+- `/autoimprove run --phase propose` — Run in propose phase (draft larger changes for review)
+- `/autoimprove run --phase research` — Run in research phase (investigate, no code changes)
+- `/autoimprove status` — Check running session, current trust tier, phase
+- `/autoimprove report` — Morning review (format adapts to current phase)
 - `/autoimprove history` — Browse full experiment log with filtering
+- `/autoimprove proposals` — Review/approve/reject pending proposals from propose phase
 - `/autoimprove init` — Scaffold `autoimprove.yaml` for the current project (detects project type, finds test commands, suggests benchmarks)
 
 ## The Morning Report
@@ -340,7 +422,7 @@ This design was stress-tested through two rounds of FOR/AGAINST adversarial revi
 | **Baseline drift** — 10x1.9% regressions compound to 17% | Critical | Epoch baseline frozen at session start. Dual scoring. Halt if cumulative drift >5% |
 | **Gate/benchmark inversion** — agent removes untested functionality | High | Coverage gate: changed files must have >=80% test coverage |
 | **Shallow worktree isolation** — shared DBs, caches, env vars | High | State hash checkpoint before/after. clean_between_experiments commands |
-| **150-line blind spot** — cross-boundary refactors unreachable | Medium | Refactor tier: 6 files, 300 lines, 3% significance threshold |
+| **150-line blind spot** — cross-boundary refactors unreachable | Medium | Trust escalation ratchet: scope expands with demonstrated competence. Tier 3 = no scope limit, propose-only |
 | **No stagnation exit** — burns budget on empty search space | Medium | Early stop after 5 consecutive non-improvements per theme |
 | **experiments.tsv not reproducible** — records outcomes not causes | Medium | Full context.json per experiment (model version, SHA, prompt, seed) |
 
@@ -381,3 +463,4 @@ This is philosophically true but practically irrelevant. autoresearch's agent al
 - **Cross-project learning**: Share experiment history patterns across projects
 - **Benchmark rotation**: Periodically swap benchmark tasks to prevent overfitting
 - **Auto-theme discovery**: Analyze the codebase to suggest new themes automatically
+- **Novelty fingerprinting**: Hash behavioral outputs to detect and reward divergent experiments, avoid retreading
