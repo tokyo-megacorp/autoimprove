@@ -7,10 +7,10 @@
 set -uo pipefail
 
 CONFIG="${1:-}"
-BASELINE="${2:-}"
+BASELINE="${2:-/dev/null}"
 
-if [ -z "$CONFIG" ] || [ -z "$BASELINE" ]; then
-  echo '{"verdict":"error","reason":"usage: evaluate.sh <config.json> <baseline.json>"}' >&2
+if [ -z "$CONFIG" ]; then
+  echo '{"verdict":"error","reason":"usage: evaluate.sh <config.json> [baseline.json]"}' >&2
   exit 1
 fi
 
@@ -211,12 +211,14 @@ score_results() {
       is_regressed=$(echo "$normalized_delta < -$tolerance" | bc -l)
       is_improved=$(echo "$normalized_delta > $significance" | bc -l)
 
-      # Build per-metric JSON
+      # Build per-metric JSON (delta_pct as percentage, e.g. 5.4 for 5.4%)
+      local delta_pct_display
+      delta_pct_display=$(echo "scale=4; $delta_pct * 100" | bc -l)
       local metric_json
       metric_json=$(jq -n \
         --argjson baseline "$baseline_val" \
         --argjson candidate "$candidate_val" \
-        --arg delta_pct "$delta_pct" \
+        --arg delta_pct "$delta_pct_display" \
         --arg direction "$direction" \
         '{baseline: $baseline, candidate: $candidate, delta_pct: ($delta_pct | tonumber), direction: $direction}')
 
@@ -255,10 +257,12 @@ score_results() {
 run_gates
 
 if [ "$GATE_PASSED" = "false" ]; then
+  failed_gate=$(echo "$GATE_RESULTS" | jq -r '.[-1].name')
   jq -n \
     --arg verdict "gate_fail" \
+    --arg reason "gate '$failed_gate' failed" \
     --argjson gates "$GATE_RESULTS" \
-    '{verdict: $verdict, gates: $gates}'
+    '{verdict: $verdict, reason: $reason, gates: $gates, metrics: {}, improved: [], regressed: [], verdict_logic: "gate_fast_fail"}'
   exit 0
 fi
 
