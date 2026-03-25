@@ -1,0 +1,5 @@
+{
+  "name": "autoimprove",
+  "description": "Autonomous codebase improvement loop — modify code, evaluate against benchmarks, keep or discard via git worktrees",
+  "version": "0.1.0"
+}
