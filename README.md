@@ -102,9 +102,11 @@ See [docs/configuration.md](docs/configuration.md) for the full schema.
 ## Documentation
 
 - [Getting Started](docs/getting-started.md) — install, configure, first run
+- [Usage Guide](docs/usage.md) — setup walkthrough, running sessions, tuning strategy, benchmark patterns
 - [Configuration](docs/configuration.md) — full `autoimprove.yaml` reference
 - [How It Works](docs/how-it-works.md) — architecture, scoring, safety mechanisms
 - [Commands](docs/commands.md) — `/autoimprove run`, `report`, `init`
+- [Troubleshooting](docs/troubleshooting.md) — common issues and how to fix them
 
 ## Project structure
 
