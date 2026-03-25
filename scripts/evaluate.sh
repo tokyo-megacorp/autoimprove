@@ -89,6 +89,65 @@ run_gates() {
   done
 }
 
+# ── Metric extractor ──────────────────────────────────────────────────────────
+# Usage: extract_metric <pattern> <output>
+# Returns the extracted value to stdout, or empty string on failure.
+
+extract_metric() {
+  local pattern="$1"
+  local output="$2"
+
+  if [[ "$pattern" == json:* ]]; then
+    local jq_path="${pattern#json:}"
+    echo "$output" | jq -r "$jq_path" 2>/dev/null
+  else
+    # Treat pattern as a shell command; pipe output through it
+    echo "$output" | eval "$pattern" 2>/dev/null
+  fi
+}
+
+# ── Benchmark runner ───────────────────────────────────────────────────────────
+# Returns: sets BENCH_METRICS (JSON object of name→value)
+
+run_benchmarks() {
+  local bench_count
+  bench_count=$(jq '.benchmarks | length' "$CONFIG")
+
+  BENCH_METRICS='{}'
+
+  for (( i=0; i<bench_count; i++ )); do
+    local bench_name bench_cmd
+    bench_name=$(jq -r ".benchmarks[$i].name" "$CONFIG")
+    bench_cmd=$(jq -r ".benchmarks[$i].command" "$CONFIG")
+
+    local bench_output
+    set +e
+    bench_output=$(eval "$bench_cmd" 2>/dev/null)
+    set -e
+
+    local metric_count
+    metric_count=$(jq ".benchmarks[$i].metrics | length" "$CONFIG")
+
+    for (( j=0; j<metric_count; j++ )); do
+      local metric_name extract_pattern
+      metric_name=$(jq -r ".benchmarks[$i].metrics[$j].name" "$CONFIG")
+      extract_pattern=$(jq -r ".benchmarks[$i].metrics[$j].extract" "$CONFIG")
+
+      local raw_value
+      raw_value=$(extract_metric "$extract_pattern" "$bench_output")
+
+      if [ -n "$raw_value" ] && [ "$raw_value" != "null" ]; then
+        # Store as number if it looks numeric, else as string
+        if [[ "$raw_value" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
+          BENCH_METRICS=$(echo "$BENCH_METRICS" | jq --arg k "$metric_name" --argjson v "$raw_value" '. + {($k): $v}')
+        else
+          BENCH_METRICS=$(echo "$BENCH_METRICS" | jq --arg k "$metric_name" --arg v "$raw_value" '. + {($k): $v}')
+        fi
+      fi
+    done
+  done
+}
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 run_gates
@@ -101,11 +160,14 @@ if [ "$GATE_PASSED" = "false" ]; then
   exit 0
 fi
 
-# All gates passed
+# All gates passed — run benchmarks
+run_benchmarks
+
 if [ "$INIT_MODE" = "true" ]; then
   jq -n \
     --argjson gates "$GATE_RESULTS" \
-    '{mode: "init", gates: $gates, metrics: {}}'
+    --argjson metrics "$BENCH_METRICS" \
+    '{mode: "init", gates: $gates, metrics: $metrics}'
 else
   # Check if any benchmarks are configured
   benchmark_count=$(jq '.benchmarks | length' "$CONFIG")
@@ -117,6 +179,7 @@ else
     # Benchmarks present — scoring not yet implemented (future task)
     jq -n \
       --argjson gates "$GATE_RESULTS" \
-      '{verdict: "neutral", reason: "benchmark scoring not yet implemented", gates: $gates, metrics: {}, improved: [], regressed: [], verdict_logic: "pending"}'
+      --argjson metrics "$BENCH_METRICS" \
+      '{verdict: "neutral", reason: "benchmark scoring not yet implemented", gates: $gates, metrics: $metrics, improved: [], regressed: [], verdict_logic: "pending"}'
   fi
 fi

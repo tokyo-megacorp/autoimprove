@@ -48,5 +48,22 @@ assert_eq "only one gate ran (fast-fail)" "1" "$second_gate"
 rm -f "$tmpconfig"
 
 echo ""
+echo "=== Benchmark Runner Tests ==="
+
+bench_config=$(mktemp)
+sed "s|FIXTURES_DIR|$FIXTURES|g" "$FIXTURES/config-basic.json" > "$bench_config"
+
+echo "--- Test: init mode extracts metrics ---"
+result=$("$EVALUATE" "$bench_config" /dev/null 2>/dev/null)
+assert_json_field "mode is init" "$result" '.mode' 'init'
+assert_json_field "score extracted" "$result" '.metrics.score' '42'
+assert_json_field "speed_ms extracted" "$result" '.metrics.speed_ms' '150'
+
+echo "--- Test: json: extractor works ---"
+assert_json_field "score is number" "$result" '.metrics.score | type' 'number'
+
+rm -f "$bench_config"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
