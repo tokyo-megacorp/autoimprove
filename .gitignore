@@ -1,0 +1,22 @@
+# OS
+.DS_Store
+
+# Experiments (generated at runtime)
+experiments/
+experiments.tsv
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Runtime state
+.cache/
