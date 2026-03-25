@@ -67,6 +67,12 @@ Trust escalation: the system earns scope through demonstrated competence (0 regr
 17. Research phase (researcher agent, report generation)
 18. Phase transition orchestration
 
+## Documentation
+
+- All changes must include complete user-facing documentation in the `docs/` folder
+- Documentation should cover usage, configuration, and any new commands or features
+- Update existing docs when modifying behavior — never leave docs out of sync with code
+
 ## Coding Conventions
 
 - This is a Claude Code plugin — follow the [plugin development guide](https://docs.anthropic.com/en/docs/claude-code/plugins)

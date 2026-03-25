@@ -8,6 +8,5 @@
   },
   "repository": "https://github.com/ipedro/autoimprove",
   "license": "MIT",
-  "keywords": ["autoimprove", "autonomous", "improvement", "benchmarks", "experiments"],
-  "commands": "./.claude-plugin/commands/"
+  "keywords": ["autoimprove", "autonomous", "improvement", "benchmarks", "experiments"]
 }

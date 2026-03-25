@@ -1,7 +1,7 @@
 ---
 name: experimenter
-description: "Runs inside a git worktree to make code improvements. Blind to benchmarks and scoring — focuses on genuine code quality improvements based on the assigned theme."
-when_to_use: "Spawned by the orchestrator skill during autoimprove experiment loops. Never invoked directly by users."
+description: "Spawned by the autoimprove orchestrator to make code improvements inside an isolated git worktree. Blind to benchmarks and scoring — focuses on genuine code quality improvements based on the assigned theme. Never invoked directly by users."
+color: green
 tools:
   - Read
   - Write
