@@ -230,3 +230,59 @@ Agent(
 | Worktree isolation | `Agent(isolation="worktree")` | Built-in |
 | Forbidden path enforcement | `PreToolUse` hook | Per-tool-call |
 | Subagent lifecycle | `SubagentStart` / `SubagentStop` hooks | Per-experiment |
+
+## Known Gaps & Mitigations
+
+Identified through adversarial review of the telemetry surface.
+
+### Gap 1: No Per-Metric Raw Data in Experiment Log
+
+The composite score in `experiments.tsv` is a scalar — you can't audit which metrics improved vs regressed, or replay scoring with different weights.
+
+**Fix:** Store full metric breakdown in `experiments/<id>/context.json`:
+```json
+{
+  "metrics": {
+    "checks_passed": { "baseline": 37, "candidate": 39, "delta": 0.054, "weight": 3.0 },
+    "compression_ratio": { "baseline": 4.2, "candidate": 4.3, "delta": 0.024, "weight": 2.0 }
+  },
+  "composite_score": 0.847,
+  "baseline_composite": 0.832,
+  "epoch_composite": 0.832
+}
+```
+
+### Gap 2: Token Cap Not Directly Enforceable
+
+The SDK has `max_budget_usd` and `max_turns` but no `max_tokens` parameter. Token-to-USD conversion varies by model and cache hits.
+
+**Mitigation:** Use `max_budget_usd` as the hard enforcement. The `max_tokens_per_experiment` config value is soft guidance — the orchestrator converts it to an approximate USD cap at session start based on the selected model's pricing.
+
+### Gap 3: Crash Recovery / Orphaned Worktrees
+
+If the orchestrator or experimenter crashes, `SubagentStop` may not fire. Worktrees leak, budget accounting is corrupted, `experiments.tsv` entry is missing.
+
+**Fix:** Recovery protocol on session start:
+1. Scan for orphaned `autoimprove/*` git branches
+2. Check for incomplete entries in `experiments.tsv` (started but no verdict)
+3. Clean up any leaked worktrees
+4. Recalculate budget from logged entries
+5. Write a per-experiment heartbeat file (`experiments/<id>/heartbeat`) updated every 30s — if stale on restart, the experiment crashed
+
+### Gap 4: Aspirational APIs Need Verification
+
+`TaskProgressMessage` cumulative usage, `RateLimitEvent.resets_at`, and exact `HookMatcher` regex syntax need testing during implementation.
+
+**Mitigation:** Implementation Phase 1 should include a "telemetry smoke test" that verifies each API actually returns the expected data shape before building the full orchestrator on top of it.
+
+### Gap 5: Orchestrator Token Overhead Not Attributed
+
+The orchestrator's own turns (reading config, running gates, computing scores) consume tokens not attributed to any experiment. The `max_cost_per_session` is understated.
+
+**Fix:** Track orchestrator tokens separately. The session-level `AssistantMessage.usage` accumulation includes both orchestrator and experimenter turns. Subtract experimenter totals (from task notifications) to get orchestrator overhead. Report both in the morning report.
+
+### Gap 6: Per-Experiment Wall-Clock Timeout
+
+`max_turns` caps turns, not time. A slow test suite could make each turn take minutes.
+
+**Mitigation:** The orchestrator can implement its own wall-clock watchdog: start a timer when the experimenter launches, kill the agent if it exceeds `budget.max_time_per_experiment`. The Agent SDK supports `client.interrupt()` for this purpose.
