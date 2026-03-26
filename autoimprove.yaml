@@ -1,0 +1,58 @@
+project:
+  name: autoimprove
+  path: .
+
+budget:
+  max_experiments_per_session: 10
+
+gates:
+  - name: evaluate_tests
+    command: bash test/evaluate/test-evaluate.sh
+
+benchmarks:
+  - name: self-metrics
+    command: bash benchmark/self-metrics.sh
+    metrics:
+      - name: test_count
+        extract: "json:.test_count"
+        direction: higher_is_better
+        tolerance: 0.0
+        significance: 0.01
+
+      - name: broken_constraints
+        extract: "json:.broken_constraints"
+        direction: lower_is_better
+        tolerance: 0.0
+        significance: 0.0
+
+      - name: broken_refs
+        extract: "json:.broken_refs"
+        direction: lower_is_better
+        tolerance: 0.0
+        significance: 0.0
+
+themes:
+  auto:
+    strategy: weighted_random
+    cooldown_per_theme: 3
+    priorities:
+      test_coverage: 1
+
+constraints:
+  forbidden_paths:
+    - autoimprove.yaml
+    - scripts/evaluate.sh
+    - benchmark/**
+    - .claude-plugin/**
+    - .claude/**
+  test_modification: additive_only
+  trust_ratchet:
+    tier_0: { max_files: 3, max_lines: 150, mode: auto_merge }
+    tier_1: { max_files: 6, max_lines: 300, mode: auto_merge, after_keeps: 5 }
+    tier_2: { max_files: 10, max_lines: 500, mode: auto_merge, after_keeps: 15 }
+
+safety:
+  epoch_drift_threshold: 0.05
+  regression_tolerance: 0.0
+  significance_threshold: 0.01
+  stagnation_window: 5
