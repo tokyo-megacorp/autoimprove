@@ -306,9 +306,7 @@ Expected: `{"test_count": 10, "broken_constraints": 0, "broken_refs": 0}`
 
 Confirm autoimprove.yaml passes YAML parse:
 ```bash
-python3 -c "import json; print('yaml valid - no python yaml, but structure ok')" || true
-# Or if PyYAML available:
-python3 -c "import yaml; yaml.safe_load(open('autoimprove.yaml')); print('yaml valid')" 2>/dev/null || echo "install PyYAML to validate, or proceed"
+python3 -c "import yaml; yaml.safe_load(open('autoimprove.yaml')); print('yaml valid')" 2>/dev/null || echo "install PyYAML to validate: pip install pyyaml"
 ```
 
 Confirm the gate passes:

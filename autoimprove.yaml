@@ -44,6 +44,7 @@ constraints:
     - scripts/evaluate.sh
     - benchmark/**
     - .claude-plugin/**
+    - .claude/**
   test_modification: additive_only
   trust_ratchet:
     tier_0: { max_files: 3, max_lines: 150, mode: auto_merge }
