@@ -130,16 +130,30 @@ No preamble. JSON only.
 
 Parse the Judge's output. Store as `JUDGE_OUTPUT`.
 
+Extract the components needed for scoring:
+
+```bash
+JUDGE_RULINGS=$(printf '%s' "${JUDGE_OUTPUT}" | jq '.rulings')
+ENTHUSIAST_FINDINGS=$(printf '%s' "${ENTHUSIAST_OUTPUT}" | jq '.findings')
+```
+
+If either extraction fails (jq error), output `{"error": "failed to extract debate components"}` and exit.
+
 ### Step 3: Score
 
-Write a combined findings file to a temp path:
+Write a combined findings file to a temp path using safe JSON assembly:
 
 ```bash
 tmpfile=$(mktemp /tmp/debate-output-XXXXXX.json)
-echo '{
-  "rulings": '"${JUDGE_RULINGS}"',
-  "findings": '"${ENTHUSIAST_FINDINGS}"'
-}' > "$tmpfile"
+tmprulings=$(mktemp /tmp/debate-rulings-XXXXXX.json)
+tmpfindings=$(mktemp /tmp/debate-findings-XXXXXX.json)
+printf '%s' "${JUDGE_RULINGS}" > "$tmprulings"
+printf '%s' "${ENTHUSIAST_FINDINGS}" > "$tmpfindings"
+jq -n \
+  --slurpfile rulings "$tmprulings" \
+  --slurpfile findings "$tmpfindings" \
+  '{rulings: $rulings[0], findings: $findings[0]}' > "$tmpfile"
+rm "$tmprulings" "$tmpfindings"
 ```
 
 Run the scoring script:
