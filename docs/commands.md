@@ -1,6 +1,6 @@
 # Commands Reference
 
-autoimprove provides three slash commands accessible from within Claude Code.
+autoimprove provides 7 slash commands accessible from within Claude Code. All commands are thin wrappers that delegate to [skills](skills.md).
 
 ---
 
@@ -106,16 +106,17 @@ Runs an adversarial debate review (Enthusiast → Adversary → Judge) on code.
 | Option | Description |
 |---|---|
 | `file` | Path to a file or glob pattern to review. Use `diff` to review staged/unstaged changes. |
-| `--rounds N` | Number of debate rounds (default: auto-scaled by target size). |
+| `--rounds N` | Hard cap on debate rounds (default: unlimited, safety cap 10). |
 | `--single-pass` | Sugar for `--rounds 1`. Fast, cheaper, less thorough. |
 
 **What it does:**
 
 1. Reads the target code (file or diff).
-2. Auto-scales round count: 1 for <50 lines, 2 for normal, 3 for >5 files.
+2. Initializes a telemetry run at `~/.autoimprove/runs/<RUN_ID>/`.
 3. For each round: Enthusiast finds issues → Adversary debunks → Judge arbitrates.
-4. Checks for convergence between rounds (skips remaining if debate has converged).
+4. Checks for deterministic convergence between rounds (stops when rulings stabilize).
 5. Presents confirmed findings, debunked findings, and summary.
+6. Writes telemetry (per-round data + final run summary).
 
 **Output:** Human-readable summary + structured JSON.
 
@@ -148,3 +149,69 @@ Benchmarks debate agent accuracy against curated code challenges with known bugs
 - `challenges/` directory with manifest and challenge files (included with the plugin).
 - `scripts/score-challenge.sh` (included with the plugin).
 - `jq` installed.
+
+---
+
+## `/autoimprove test`
+
+Runs the autoimprove test suites.
+
+```
+/autoimprove test [challenge|integration|evaluate|all]
+```
+
+**Options:**
+
+| Option | Description |
+|---|---|
+| `challenge` | Run only the challenge scoring tests (`test/challenge/test-score-challenge.sh`). |
+| `integration` | Run only the integration tests (`test/challenge/test-integration.sh`). |
+| `evaluate` | Run only the evaluate tests (`test/evaluate/test-evaluate.sh`). |
+| `all` or no argument | Run all three suites. |
+
+**What it does:**
+
+Runs bash test scripts directly (no skill delegation). Reports total pass/fail counts across all suites.
+
+---
+
+## `/autoimprove prompt-testing`
+
+Write tests for Claude Code skills and agents — triggering tests, unit tests, agent output tests, and integration tests.
+
+```
+/autoimprove prompt-testing [skill-name | agent-name | all]
+```
+
+**What it does:**
+
+Invokes the [prompt-testing](skills.md#prompt-testing) skill, which teaches four test types for plugin components:
+- **Unit tests** — verify skill content with `claude -p` + text assertions
+- **Agent tests** — inject system prompt + verify JSON output schema
+- **Triggering tests** — verify correct skill fires via `--output-format stream-json`
+- **Explicit request tests** — verify named invocation + no premature work before skill loads
+
+This is a methodology/reference skill, not an automated test runner.
+
+---
+
+## `/autoimprove idea-matrix`
+
+Run a 3x3 haiku idea exploration matrix on design options.
+
+```
+/autoimprove idea-matrix [problem statement + options, or invoke during brainstorming]
+```
+
+**What it does:**
+
+1. Parses the problem statement and 3+ design options from user input or conversation context.
+2. Generates a 3x3 matrix: 3 solo options, 3 pairwise hybrids, 1 trio, 2 wild cards.
+3. The orchestrator pre-digests codebase context into a ~500 token architecture brief.
+4. Dispatches 9 parallel haiku agents (no tools — pure reasoning on pre-digested context).
+5. Each agent scores its cell on 4 dimensions (feasibility, risk, synergy potential, implementation cost) rated 1-5.
+6. Synthesizes a convergence report: score matrix, dimension aggregates, recommended design with verdict.
+
+**Output:** Human-readable convergence report + full structured JSON.
+
+**When to use:** During brainstorming sessions when you have 3+ design options and want systematic evaluation of all combinations. Works standalone or mid-conversation.

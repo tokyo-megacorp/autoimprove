@@ -12,15 +12,16 @@ autoimprove is a Claude Code plugin that runs an autonomous improvement loop on 
 
 ## Installation
 
-1. Clone or copy the plugin into your Claude Code plugins directory (or reference it from your project):
+**From marketplace:**
 
-   ```
-   .claude-plugin/
-   ```
+```bash
+claude plugin marketplace add https://github.com/ipedro/autoimprove
+claude plugin install autoimprove
+```
 
-2. Run `/autoimprove init` in your project directory. This scaffolds an `autoimprove.yaml` config file with sensible defaults.
+**Local development:** If you're working inside the autoimprove repo, Claude Code auto-discovers `.claude-plugin/` — no install needed.
 
-3. Edit `autoimprove.yaml` to wire up your gates, benchmarks, and themes. See [configuration.md](configuration.md) for the full schema.
+After installing, run `/autoimprove-init` in your project directory. This scaffolds an `autoimprove.yaml` config file with sensible defaults. Edit it to wire up your gates, benchmarks, and themes. See [configuration.md](configuration.md) for the full schema.
 
 ## Quick Start
 
@@ -58,3 +59,15 @@ autoimprove is conservative by design:
 - **Test modifications are additive only**: the experimenter can add tests but cannot delete or weaken assertions.
 
 The first session is intentionally cautious. After a track record of clean keeps, the system earns broader scope automatically.
+
+## Beyond the grind loop
+
+autoimprove also includes standalone tools that work without `autoimprove.yaml`:
+
+- **Adversarial review** (`/autoimprove-review`) — run a multi-round debate review on any code file or diff. Three agents (Enthusiast, Adversary, Judge) find and validate bugs through structured debate. See [skills: adversarial-review](skills.md#adversarial-review).
+
+- **Idea matrix** (`/autoimprove-idea-matrix`) — explore design options systematically. 9 parallel haiku agents score individual options, hybrids, and composites on a structured rubric, then a convergence report synthesizes the winner. See [skills: idea-matrix](skills.md#idea-matrix).
+
+- **Challenge benchmarks** (`/autoimprove-test challenge`) — test debate agent accuracy against curated code puzzles with known answer keys. See [skills: challenge](skills.md#challenge).
+
+- **Prompt testing** (`/autoimprove-prompt-testing`) — methodology guide for writing tests for skills and agents. See [skills: prompt-testing](skills.md#prompt-testing).

@@ -161,3 +161,42 @@ The output is JSON. Pipe through `jq` for readability:
 ```bash
 bash scripts/evaluate.sh experiments/evaluate-config.json | jq .
 ```
+
+## Adversarial review issues
+
+**"Nothing to review — both working tree and staging area are clean"**
+
+The review target defaulted to `diff` but there are no changes. Specify a file instead:
+```
+/autoimprove review path/to/file.ts
+```
+
+**Agent returns invalid JSON**
+
+The skill re-prompts once on malformed JSON. If it fails twice, the round is skipped (logged as `*_malformed_json`). This usually means the agent included prose or markdown fences before the JSON. Check `~/.autoimprove/runs/<RUN_ID>/round-N.json` for the raw output.
+
+**Judge reports convergence but rounds keep going**
+
+This is expected. The orchestrator performs its own deterministic convergence check by comparing `(finding_id, winner, final_severity)` tuples between rounds. If the Judge says "converged" but the tuples differ, the orchestrator overrides and continues. Check `meta.json` for `judge_llm_convergence_mismatches`.
+
+**Review runs too many rounds**
+
+Use `--rounds N` to cap, or `--single-pass` for a quick single-round review. Default is unlimited with a safety cap of 10.
+
+**Telemetry folder not created**
+
+Check write permissions on `~/.autoimprove/`. Telemetry failure never blocks the review — it logs a warning and continues.
+
+## Idea matrix issues
+
+**"Fewer than 3 options available"**
+
+The matrix requires at least 3 design options to generate meaningful combinations. Provide more options inline or invoke `/autoimprove-idea-matrix` during a brainstorming session where options were already discussed.
+
+**All scores cluster around 3**
+
+The scoring rubric instructs agents to differentiate, but haiku-class agents may still cluster. Check if the architecture brief provides enough specific detail for agents to reason about trade-offs. More concrete context = more differentiated scores.
+
+**Agent output is not valid JSON**
+
+The skill re-prompts once. If still invalid, the cell is recorded as `{"error": "malformed output"}` and excluded from scoring. Check the agent prompt — if the architecture brief is too long, it may push the rubric instructions out of haiku's effective attention range. Keep the total prompt under ~800 tokens.
