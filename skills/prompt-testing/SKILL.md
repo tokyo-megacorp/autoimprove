@@ -147,9 +147,11 @@ PROMPT="run a review round on my code"
 
 LOG=$(mktemp)
 claude -p "$PROMPT" \
+    --model "$TEST_MODEL" \
     --plugin-dir "$PLUGIN_DIR" \
     --dangerously-skip-permissions \
     --max-turns 3 \
+    --verbose \
     --output-format stream-json \
     > "$LOG" 2>&1
 
@@ -178,9 +180,11 @@ PROMPT="review, please"  # or "use the review skill", "review skill, please"
 
 LOG=$(mktemp)
 claude -p "$PROMPT" \
+    --model "$TEST_MODEL" \
     --plugin-dir "$PLUGIN_DIR" \
     --dangerously-skip-permissions \
     --max-turns 3 \
+    --verbose \
     --output-format stream-json \
     > "$LOG" 2>&1
 
@@ -236,6 +240,9 @@ Organize triggering tests into sections by prompt source and intent. This struct
 | Missing `--plugin-dir` | Claude Code loads user's installed plugins, not the dev version | Always pass `--plugin-dir` for triggering/explicit tests |
 | Missing `--dangerously-skip-permissions` | Claude Code prompts for permission confirmation in headless mode | Required for non-interactive test runs |
 | Omitting `--output-format stream-json` | Text output has no record of which tools fired | Required for all triggering tests |
+| Missing `--verbose` with `stream-json` | `--output-format stream-json` requires `--verbose` in print mode — silently produces empty output without it | Always pair `--verbose` with `--output-format stream-json` |
+| Using `timeout` on macOS | GNU `timeout` is not available by default on macOS | Remove `timeout` or use Bash `SECONDS`-based guard; don't depend on coreutils |
+| Using `set -e` in test runner | First failure kills the entire suite — you lose visibility into subsequent tests | Use `set -uo pipefail` without `-e`; collect results via `record()` |
 | Skipping negative tests | Skill might trigger on everything | Test prompts that should NOT trigger |
 | One giant test file | Slow and hard to debug | One test file per agent/skill |
 
@@ -253,6 +260,7 @@ claude -p "$PROMPT" \
     --plugin-dir "$PLUGIN_DIR" \
     --dangerously-skip-permissions \
     --max-turns 3 \
+    --verbose \
     --output-format stream-json
 ```
 

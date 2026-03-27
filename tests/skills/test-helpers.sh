@@ -23,11 +23,12 @@ run_with_plugin() {
     local log
     log=$(mktemp)
 
-    timeout "$timeout" claude -p "$prompt" \
+    claude -p "$prompt" \
         --model "$TEST_MODEL" \
         --plugin-dir "$PLUGIN_DIR" \
         --dangerously-skip-permissions \
         --max-turns "$max_turns" \
+        --verbose \
         --output-format stream-json \
         > "$log" 2>&1 || true
 
