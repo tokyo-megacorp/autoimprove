@@ -1,0 +1,41 @@
+{
+  "challenge": "unsafe-ub",
+  "language": "rust",
+  "bugs": [
+    {
+      "id": "B1",
+      "file": "challenge.rs",
+      "line": 14,
+      "type": "buffer-overrun",
+      "severity": "critical",
+      "description": "The loop uses an inclusive range 0..=len instead of exclusive 0..len. This reads one element past the end of the slice, causing undefined behavior by accessing uninitialized memory.",
+      "fix_pattern": "..",
+      "fix_pattern_mode": "substring"
+    },
+    {
+      "id": "B2",
+      "file": "challenge.rs",
+      "line": 24,
+      "type": "aliasing-violation",
+      "severity": "critical",
+      "description": "Creates a mutable reference from an immutable reference by casting through a raw pointer. This violates Rust's aliasing rules and causes immediate undefined behavior. The immutable reference is still live and the mutable reference would allow modifications through it.",
+      "fix_pattern": "unsafe",
+      "fix_pattern_mode": "substring"
+    },
+    {
+      "id": "B3",
+      "file": "challenge.rs",
+      "line": 77,
+      "type": "memory-leak",
+      "severity": "high",
+      "description": "The FastBuffer struct allocates memory with alloc() but provides no Drop implementation. This means the allocated memory is never deallocated, causing a memory leak whenever a FastBuffer is dropped.",
+      "fix_pattern": "Drop",
+      "fix_pattern_mode": "substring"
+    }
+  ],
+  "scoring": {
+    "match_file": true,
+    "match_line_range": 5,
+    "match_type": true
+  }
+}

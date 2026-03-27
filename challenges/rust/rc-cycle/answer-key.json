@@ -1,0 +1,21 @@
+{
+  "challenge": "rc-cycle",
+  "language": "rust",
+  "bugs": [
+    {
+      "id": "B1",
+      "file": "challenge.rs",
+      "line": 14,
+      "type": "memory-leak",
+      "severity": "high",
+      "description": "The prev field in Node uses Rc (strong reference) instead of Weak (weak reference). This creates reference cycles between adjacent nodes: node A's next points to B (Rc), and B's prev points back to A (Rc), preventing proper cleanup when nodes are dropped.",
+      "fix_pattern": "Weak",
+      "fix_pattern_mode": "substring"
+    }
+  ],
+  "scoring": {
+    "match_file": true,
+    "match_line_range": 5,
+    "match_type": true
+  }
+}
