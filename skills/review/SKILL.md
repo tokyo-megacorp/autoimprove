@@ -1,5 +1,5 @@
 ---
-name: debate-review
+name: adversarial-review
 description: "Run an adversarial debate review on code. Use when the user invokes '/autoimprove review', asks to 'review code with debate agents', 'run debate review', 'run a review round', 'do a review round', or 'adversarial review'. Takes a file, diff, or PR as target."
 argument-hint: "[file|diff] [--rounds N] [--single-pass]"
 allowed-tools: [Read, Glob, Grep, Bash, Agent]
