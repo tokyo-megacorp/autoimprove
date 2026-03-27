@@ -17,21 +17,17 @@ Run the Enthusiast → Adversary → Judge debate cycle on the given target.
 
 From the user's input, extract:
 - **target**: file path, glob pattern, or "diff" (meaning staged/unstaged git diff)
-- **rounds**: number of debate rounds (default: auto-scale based on target size)
-- **single_pass**: if true, set rounds to 1
+- **max_rounds**: hard cap on rounds (default: unlimited, safety cap 10)
+- **single_pass**: if true, run exactly 1 round
 
-If `--single-pass` was passed, set rounds to 1.
+If `--single-pass` was passed, set max_rounds to 1.
 
-If `--rounds N` was explicitly passed, use N (minimum 1). User-specified rounds always take precedence over auto-scale.
+If `--rounds N` was explicitly passed, use N as a hard cap (minimum 1).
 
-If the user requests fewer rounds without `--rounds` (e.g. "quick review", "just one pass"), reduce the auto-scaled value by 1, minimum 1. Log: `"User requested quick review — rounds reduced to <N>"`.
+If the user requests fewer rounds without `--rounds` (e.g. "quick review", "just one pass"), set max_rounds to 1. Log: `"User requested quick review — capped at 1 round"`.
 
-If no explicit round count or quick-review request, auto-scale based on target size:
-- More than 5 files OR 200+ lines → 3 rounds
-- 50–199 lines (and ≤ 5 files) → 2 rounds
-- Fewer than 50 lines (and ≤ 5 files) → 1 round
-
-(File count takes precedence over line count when both thresholds trigger.)
+**Default (no flags):** run until deterministic convergence, safety cap of 10 rounds.
+The goal is to surface all issues — stop only when the debate has genuinely stabilized.
 
 ---
 
@@ -89,7 +85,14 @@ telemetry failure must never block the review.
 
 # 3. Run Debate Rounds
 
-For each round (1 to N):
+Loop: run rounds until **deterministic convergence** is reached or `max_rounds` is hit.
+
+- Start at round 1; increment after each complete round.
+- Stop early when `converged = true` (deterministic check, section 3d). Record `converged_at_round`.
+- Stop when `round > max_rounds`. Log: `"Safety cap reached at round <N> — stopping."` if the safety cap (10) triggered without convergence.
+- Never stop just because the Judge self-reports `convergence: true` — the deterministic check is the only valid stop signal.
+
+For each round:
 
 ## 3a. Spawn Enthusiast
 
