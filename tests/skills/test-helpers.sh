@@ -3,11 +3,15 @@
 
 PLUGIN_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
+# Model for tests — haiku is cheapest and sufficient for triggering checks.
+# Override: TEST_MODEL=sonnet bash tests/skills/run-tests.sh
+TEST_MODEL="${TEST_MODEL:-haiku}"
+
 # Run claude headless, text output — for unit tests
 run_claude() {
     local prompt="$1"
     local timeout="${2:-60}"
-    claude -p "$prompt" --output-format text 2>/dev/null
+    claude -p "$prompt" --model "$TEST_MODEL" --output-format text 2>/dev/null
 }
 
 # Run claude with plugin loaded, stream-json — for triggering/explicit tests
@@ -20,6 +24,7 @@ run_with_plugin() {
     log=$(mktemp)
 
     timeout "$timeout" claude -p "$prompt" \
+        --model "$TEST_MODEL" \
         --plugin-dir "$PLUGIN_DIR" \
         --dangerously-skip-permissions \
         --max-turns "$max_turns" \
@@ -91,4 +96,4 @@ assert_no_premature_work() {
 }
 
 export -f run_claude run_with_plugin assert_contains assert_skill_triggered assert_skill_not_triggered assert_no_premature_work
-export PLUGIN_DIR
+export PLUGIN_DIR TEST_MODEL

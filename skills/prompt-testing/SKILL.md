@@ -29,7 +29,9 @@ Do NOT use for testing regular code — only for plugin components."
 
 Claude Code skills and agents are tested by running `claude -p` in headless mode and asserting on the output. There are four test types — using the wrong one is the most common mistake.
 
-**Core principle:** Never use self-reported JSON (`{"invoke": true}`) to test triggering. Claude says "yes" even when the Skill tool wouldn't actually fire. Only `--output-format stream-json` tells you what actually happened.
+**Core principles:**
+1. Never use self-reported JSON (`{"invoke": true}`) to test triggering. Claude says "yes" even when the Skill tool wouldn't actually fire. Only `--output-format stream-json` tells you what actually happened.
+2. Always use `--model haiku` for prompt tests. Triggering tests only verify tool dispatch, not output quality — haiku is ~60x cheaper than Opus and sufficient. Expose via `TEST_MODEL` env var for override.
 
 ---
 
@@ -103,7 +105,7 @@ assert_contains "$output" "2 rounds\|two rounds" "50-line file → 2 rounds"
 assert_contains "$output" "50.*199\|50-199" "references the correct range"
 ```
 
-`run_claude` is `claude -p "$prompt" --output-format text`.
+`run_claude` is `claude -p "$prompt" --model "$TEST_MODEL" --output-format text`.
 
 ---
 
@@ -208,6 +210,24 @@ fi
 
 ---
 
+## Test Organization for Triggering Tests
+
+Organize triggering tests into sections by prompt source and intent. This structure catches both known regressions and extrapolated edge cases:
+
+| Section | Purpose | Example prompts |
+|---------|---------|-----------------|
+| **Real user queries** | Actual prompts from session history (lcm grep, git log) | "what do we have wip?", "what did we do last session?" |
+| **Orientation variants** | Same intent, different wording — extrapolate from real patterns | "sitrep", "bring me up to speed", "fill me in" |
+| **Continuation** | User resuming prior work | "pick up where we left off", "where were we?" |
+| **Implementation context** | User needs prior decisions before starting work | "any decisions about the migration?" |
+| **Terse/shorthand** | Power-user minimal prompts | "wip?", "status?", "updates?" |
+| **Negatives** | Must NOT trigger — general knowledge, simple code gen | "what is a binary search tree?", "hello world in python" |
+| **Explicit request** | Named invocation + premature-work check | "/skill-name", "use the X skill" |
+
+**Source real test cases from actual usage.** Search lcm/git for the user's actual session-start messages. Extrapolate common wording patterns from those — don't invent test cases in a vacuum.
+
+---
+
 ## Common Mistakes
 
 | Mistake | Why it fails | Fix |
@@ -225,10 +245,11 @@ fi
 
 ```bash
 # Unit / agent tests (no plugin loading needed)
-claude -p "$PROMPT" --output-format text
+claude -p "$PROMPT" --model "$TEST_MODEL" --output-format text
 
 # Triggering / explicit request tests
 claude -p "$PROMPT" \
+    --model "$TEST_MODEL" \
     --plugin-dir "$PLUGIN_DIR" \
     --dangerously-skip-permissions \
     --max-turns 3 \
@@ -236,6 +257,8 @@ claude -p "$PROMPT" \
 ```
 
 `--max-turns 3` is enough for triggering tests — you only need to verify the skill fires, not complete the workflow.
+
+`--model haiku` keeps costs low — triggering tests check tool dispatch, not output quality. Override with `TEST_MODEL=sonnet` when debugging failures.
 
 ---
 

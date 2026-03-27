@@ -3,6 +3,10 @@
 
 AGENTS_DIR="$(cd "$(dirname "$0")/../../agents" && pwd)"
 
+# Model for tests — haiku is cheapest and sufficient for structure/schema checks.
+# Override: TEST_MODEL=sonnet bash tests/agents/run-tests.sh
+TEST_MODEL="${TEST_MODEL:-haiku}"
+
 # Extract system prompt from agent .md file (strips YAML frontmatter)
 get_system_prompt() {
     local agent_file="$1"
@@ -27,7 +31,7 @@ ${system_prompt}
 
 ${scenario}"
 
-    claude -p "$prompt" --output-format text 2>/dev/null
+    claude -p "$prompt" --model "$TEST_MODEL" --output-format text 2>/dev/null
 }
 
 # Extract first JSON object from output (handles prose around the JSON)
@@ -145,4 +149,4 @@ assert_contains() {
 }
 
 export -f get_system_prompt run_as_agent extract_json assert_json_field assert_json_has_key assert_json_array_length assert_contains
-export AGENTS_DIR
+export AGENTS_DIR TEST_MODEL
