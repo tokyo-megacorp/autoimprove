@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); f=d.get('file_path',''); sys.exit(1 if 'scripts/evaluate.sh' in f else 0)\" && exit 0 || { echo 'BLOCKED: scripts/evaluate.sh is the single evaluator. Edit deliberately — remove this hook temporarily if intentional.'; exit 1; }",
+            "blocking": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); f=d.get('file_path',''); sys.exit(0 if 'scripts/' in f else 1)\" && bash test/evaluate/test-evaluate.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

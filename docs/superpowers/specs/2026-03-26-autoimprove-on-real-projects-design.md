@@ -10,7 +10,7 @@ A setup guide for deploying autoimprove on real target projects (lossless-claude
 
 ## Architecture
 
-autoimprove.yaml and benchmark/metrics.sh live in the **target repo**, not in the autoimprove repo. The autoimprove plugin is installed globally; each target project opts in by running `/autoimprove init`.
+autoimprove.yaml and benchmark/metrics.sh live in the **target repo**, not in the autoimprove repo. (Exception: when autoimprove runs on its own codebase for dogfooding/integration validation, autoimprove itself becomes the target repo — see the dogfooding section at the end of this document.) The autoimprove plugin is installed globally; each target project opts in by running `/autoimprove init`.
 
 ```
 target-project/
