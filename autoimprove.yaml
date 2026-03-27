@@ -56,3 +56,27 @@ safety:
   regression_tolerance: 0.0
   significance_threshold: 0.01
   stagnation_window: 5
+
+xgh:
+  repos:
+    - extreme-go-horse/xgh
+  metrics:
+    - name: velocity
+      description: PRs merged per sprint
+      extract: "json:.merged_per_sprint"
+      direction: higher_is_better
+    - name: quality
+      description: adversarial review findings per PR
+      extract: "json:.findings_per_pr"
+      direction: lower_is_better
+    - name: coverage_delta
+      description: test coverage change per PR (if applicable)
+      extract: "json:.coverage_delta"
+      direction: higher_is_better
+  signal_collection:
+    trigger: post-merge
+    collector: scripts/autoimprove-trigger.sh
+    tags:
+      - "project:xgh"
+      - "source:github"
+  allocation: 0.20  # 20% of xgh implementations feed autoimprove pipeline
