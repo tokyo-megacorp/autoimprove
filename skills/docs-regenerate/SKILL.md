@@ -1,7 +1,7 @@
 ---
 name: docs-regenerate
-description: "Update docs after code changes using only the git diff. Use when the user says 'regenerate docs', 'update docs', 'docs are stale', 'sync docs', '/docs-regenerate', or after a milestone commit. Detects which source files changed, gets the diff, maps to affected doc sections, and patches only those sections."
-argument-hint: "[--range <git-range>] [--dry-run]"
+description: "Regenerate docs after code changes. Use when the user says 'regenerate docs', 'update docs', 'docs are stale', 'sync docs', '/docs-regenerate', or after a milestone commit. Detects which source files changed, maps them to affected doc files, and delegates updates to subagents."
+argument-hint: "[--range <git-range>] [--all] [--dry-run]"
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
 ---
 
@@ -9,7 +9,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
 You are NOW executing the docs-regenerate skill. Do NOT invoke this skill again via the Skill tool — execute the steps below directly. Invoking it again would create an infinite loop.
 </SKILL-GUARD>
 
-Update documentation using ONLY the git diff as context. Never read full source files. Never regenerate entire docs.
+Detect changed source files, map them to affected docs, and regenerate stale documentation.
 
 ---
 
@@ -17,190 +17,249 @@ Update documentation using ONLY the git diff as context. Never read full source 
 
 From the user's input, extract:
 - **range**: git range for detecting changes (default: `HEAD~1..HEAD`)
+- **all**: if true, regenerate all docs regardless of changes
 - **dry_run**: if true, report what would change without writing
+
+If `--all` was passed, skip step 2 (change detection) and proceed to step 3 with all artifact types.
 
 If a specific range was given (e.g., `HEAD~5..HEAD`, `main..feature`), use that for change detection.
 
 ---
 
-# 2. Detect Changed Files and Get Diffs
+# 2. Detect Changed Files
 
-**2a. Get the list of changed files:**
-
-```bash
-git diff --name-only --diff-filter=ACMRD <RANGE>
-```
-
-Store as `CHANGED_FILES`. If empty, tell the user: "No changes detected in the specified range. Specify a broader range with `--range`."
-
-**2b. Get the actual diffs for those files:**
+Run change detection over the specified range:
 
 ```bash
-git diff <RANGE> -- <file1> <file2> ...
+git diff --name-only --diff-filter=ACMR <RANGE>
 ```
 
-Store as `DIFFS`. This is the ONLY context subagents will receive — no full file reads.
-
-**2c. Identify new vs modified vs deleted files:**
-
-From the diff filter flags:
-- `A` = new file (doc entry needs to be created)
-- `M`/`C`/`R` = modified (doc entry needs to be updated)
-- `D` = deleted (doc entry needs to be removed)
+Store the list as `CHANGED_FILES`. If the list is empty and `--all` was not passed, tell the user: "No changes detected in the specified range. Use `--all` to regenerate all docs, or specify a broader range with `--range`."
 
 ---
 
-# 3. Map Changes to Affected Docs
+# 3. Read Structure Spec
+
+Read `~/.claude/docs-structure-spec.md` to get the canonical documentation structure rules.
+
+If the file does not exist, use these defaults:
+- Flat files for artifact types with count <= 10
+- Subtree directories for count > 10
+- README.md in every directory
+- User perspective, not implementation details
+
+Store as `SPEC`.
+
+---
+
+# 4. Inventory Current State
+
+Scan the repository to count artifacts and determine the current docs structure:
+
+**4a. Count artifacts:**
+
+```bash
+# Skills
+ls skills/*/SKILL.md 2>/dev/null | wc -l
+
+# Commands
+ls commands/*.md 2>/dev/null | wc -l
+
+# Agents
+ls agents/*.md 2>/dev/null | wc -l
+
+# Hooks (check both locations)
+ls hooks/*.ts hooks/*.js hooks/*.sh 2>/dev/null | wc -l
+
+# MCP tools (check plugin.json or .mcp.json)
+# CLI subcommands (check if repo has a CLI binary)
+```
+
+Store counts as `ARTIFACT_COUNTS`.
+
+**4b. Check existing docs:**
+
+```bash
+ls docs/*.md docs/*/*.md 2>/dev/null
+```
+
+Store as `EXISTING_DOCS`.
+
+**4c. Determine structure mode for each type:**
+
+Apply the spec's scale rule:
+- count <= 10 → flat file (e.g., `docs/skills.md`)
+- count > 10 → subtree (e.g., `docs/skills/README.md` + per-skill files)
+- count == 0 → no doc file (do not create empty docs)
+
+Store as `STRUCTURE_MODE` (map of type → "flat" | "subtree" | "none").
+
+---
+
+# 5. Map Changes to Affected Docs
 
 For each file in `CHANGED_FILES`, classify it and determine which doc(s) need updating:
 
 | Changed file pattern | Affected doc | Action |
 |---------------------|-------------|--------|
-| `skills/<name>/SKILL.md` | `docs/skills.md` or `docs/skills/<name>.md` | Update/create/remove skill entry |
-| `agents/<name>.md` | `docs/agents.md` or `docs/agents/<name>.md` | Update/create/remove agent entry |
-| `commands/<name>.md` | `docs/commands.md` or `docs/commands/<name>.md` | Update/create/remove command entry |
-| `hooks/<name>.*` | `docs/hooks.md` or `docs/hooks/<name>.md` | Update/create/remove hook entry |
+| `skills/<name>/SKILL.md` | `docs/skills.md` or `docs/skills/<name>.md` | Update skill entry |
+| `agents/<name>.md` | `docs/agents.md` or `docs/agents/<name>.md` | Update agent entry |
+| `commands/<name>.md` | `docs/commands.md` or `docs/commands/<name>.md` | Update command entry |
+| `hooks/<name>.*` | `docs/hooks.md` or `docs/hooks/<name>.md` | Update hook entry |
 | `*.yaml`, `*.json` (config) | `docs/configuration.md` | Update config reference |
 | `plugin.json` | `docs/getting-started.md`, `docs/README.md` | Check if version/name changed |
-| `docs/*.md` | Self — no action needed | Skip (docs editing themselves) |
+| New file in any category | Flag as "new — doc may not exist" | Create doc entry |
+| Deleted file in any category | Flag as "removed — doc may be stale" | Remove doc entry |
 
-Build `AFFECTED_DOCS` — a list of `{ doc_path, action, changed_files[], reason }`.
+Build `AFFECTED_DOCS` — a list of `{ doc_path, action, source_files, reason }`.
+
+If `--all` was passed, include ALL doc files as affected.
 
 If `--dry-run` was passed, print the `AFFECTED_DOCS` list and stop here:
 
 ```
-Docs update plan (diff-only):
-  UPDATE docs/skills.md — skills/idea-matrix/SKILL.md changed (section patch)
-  CREATE entry in docs/commands.md — commands/idea-matrix.md added
-  REMOVE entry in docs/agents.md — agents/old-agent.md deleted
+Docs regeneration plan:
+  UPDATE docs/skills.md — skills/idea-matrix/SKILL.md changed
+  UPDATE docs/commands.md — commands/idea-matrix.md added
+  UPDATE docs/agents.md — agents/idea-explorer.md added
   UPDATE docs/README.md — new skills/commands detected
   SKIP docs/configuration.md — no config changes
+  SKIP docs/architecture.md — no structural changes
 ```
 
 ---
 
-# 4. Read ONLY Affected Doc Sections
+# 6. Read Source Files for Context
 
-For each affected doc, read the doc file that needs updating:
+For each affected doc, read the source files that inform it:
 
-```
-Read docs/skills.md
-```
+- For skill docs: read the SKILL.md file (the skill definition IS the source of truth)
+- For agent docs: read the agent .md file (frontmatter + system prompt)
+- For command docs: read the command .md file
+- For hook docs: read the hook source file
+- For config docs: read the config file(s)
 
-Do NOT read source files (skills/*.md, agents/*.md, commands/*.md, hooks/*). The git diff from step 2b contains everything needed.
+Build `DOC_CONTEXT` — a map of `doc_path → { current_doc_content, source_content[] }`.
 
 ---
 
-# 5. Delegate Patching to Subagents
+# 7. Delegate Regeneration to Subagents
 
-For each affected doc, spawn a subagent to patch it using ONLY the diff.
+For each affected doc, spawn a subagent to regenerate or update it.
 
 **Model selection:**
-- **haiku** — for updating existing entries, removing entries, small patches
-- **sonnet** — for creating new doc entries from a diff (needs to infer structure from diff context)
+- **haiku** — for simple updates (adding a new entry to an existing flat file, updating a field)
+- **sonnet** — for new doc creation, structural changes (flat → subtree migration), or architecture.md updates
 
 **Subagent prompt template:**
 
 ```
-You are a documentation patcher. Update ONLY the relevant section(s) of this doc file based on the git diff below.
+You are a documentation writer. Update the following doc file based on changed source files.
 
-## Rules
-- Do NOT rewrite the entire file — patch only the section affected by the diff
+## Structure Spec Rules
+{relevant rules from SPEC for this doc type}
+
+## Current Doc
+{current content of the doc file, or "NEW FILE — create from scratch"}
+
+## Source Files That Changed
+{for each source file: path + full content}
+
+## Instructions
 - Write from the user perspective (behavior flows, not implementation details)
 - Match the existing style and format of the doc
-- For new entries: follow the same structure as existing entries in the doc
-- For deleted files: remove the entry entirely
-- For modified files: update only what the diff changes
+- For flat files: maintain alphabetical or logical ordering of entries
+- For new entries: follow the same structure as existing entries
+- Do not remove entries for items that still exist (only remove if the source file was deleted)
+- Output the COMPLETE updated doc file content — not a diff, not a partial update
 
-## Current Doc Content
-{content of the doc file}
-
-## Git Diff (this is your ONLY source of truth)
-{relevant portions of DIFFS for the files that map to this doc}
-
-## Action
-{action from AFFECTED_DOCS — UPDATE/CREATE/REMOVE}
-
-## Changed Files
-{list of changed file paths that affect this doc}
-
-Output the COMPLETE updated doc file content.
+Output ONLY the file content. No preamble, no explanation.
 ```
 
 **Dispatch strategy:**
-- If only 1-2 docs need updating → run sequentially
+- If only 1-2 docs need updating → run sequentially (low overhead)
 - If 3+ docs need updating → dispatch in parallel using the Agent tool
 
-Collect all patched doc content as `PATCHED[doc_path] = content`.
+Collect all regenerated doc content as `REGENERATED[doc_path] = content`.
 
 ---
 
-# 6. Check for Structure Changes
+# 8. Check for Structure Changes
 
-Only if the diff includes NEW or DELETED files in a category, check whether counts crossed the scale threshold:
+After regeneration, verify that the docs structure still matches the spec:
 
-```bash
-# Only run for affected categories
-ls skills/*/SKILL.md 2>/dev/null | wc -l   # only if a skill was added/removed
-ls commands/*.md 2>/dev/null | wc -l        # only if a command was added/removed
-```
+**8a. Flat → subtree migration:**
+If an artifact count crossed the > 10 threshold since docs were last written:
+- Create the subtree directory
+- Split the flat file into per-item files + README.md
+- Delete the flat file
+- Log: `"Migrated docs/skills.md → docs/skills/ (count exceeded 10)"`
 
-Apply the spec's scale rule (from `~/.claude/docs-structure-spec.md` if it exists):
-- count crossed above 10 → migrate flat file to subtree
-- count crossed below 11 → migrate subtree to flat file
+**8b. Subtree → flat migration:**
+If an artifact count dropped to <= 10:
+- Merge per-item files into a single flat file
+- Delete the subtree directory
+- Log: `"Consolidated docs/skills/ → docs/skills.md (count dropped to 10 or below)"`
 
-Log any migrations performed.
-
----
-
-# 7. Update docs/README.md
-
-Only if new doc files were created or the structure changed.
-
-Read the current `docs/README.md`. Add missing links, remove links to deleted files. Do not rewrite sections unrelated to the change.
+**8c. New artifact type:**
+If a new artifact type was detected (e.g., first hook added) and no doc exists:
+- Create the doc file
+- Log: `"Created docs/hooks.md (first hook detected)"`
 
 ---
 
-# 8. Write Files and Commit
+# 9. Update docs/README.md
 
-**8a. Write patched docs:**
+If any new doc files were created or the structure changed, regenerate the `docs/README.md` TOC.
 
-For each `doc_path` in `PATCHED`:
-- If content changed → write with Edit tool (preferred) or Write tool
-- If a doc should be deleted (all entries removed) → delete
+Read the current `docs/README.md`. Check if all doc files are linked. Add missing links, remove links to deleted files.
 
-**8b. Stage and commit:**
+---
+
+# 10. Write Files and Commit
+
+**10a. Write all regenerated docs:**
+
+For each `doc_path` in `REGENERATED`:
+- If the file exists and content changed → write with Edit tool
+- If the file is new → write with Write tool
+- If the file should be deleted (source was removed, no entries remain) → delete
+
+**10b. Stage and commit:**
 
 ```bash
 git add docs/
-git commit -m "docs: update after $(echo <RANGE> | tr '..' ' ')"
+git commit -m "docs: regenerate after $(echo <RANGE> | tr '..' ' ')"
 ```
 
-If no docs actually changed, skip the commit and report: "All docs are up to date — no changes needed."
+If no docs actually changed (all regenerated content matches current content), skip the commit and report: "All docs are up to date — no changes needed."
 
 ---
 
-# 9. Report
+# 11. Report
 
 Print a summary:
 
 ```
-Docs update complete (diff-only).
+Docs regeneration complete.
 
-  Patched:  docs/skills.md (updated idea-matrix section)
-  Patched:  docs/commands.md (added idea-matrix entry)
-  Patched:  docs/README.md (TOC refreshed)
-  Skipped:  docs/configuration.md (no config changes)
+  Updated:  docs/skills.md (added idea-matrix)
+  Updated:  docs/commands.md (added idea-matrix, prompt-testing)
+  Updated:  docs/agents.md (added idea-explorer)
+  Updated:  docs/README.md (TOC refreshed)
+  Skipped:  docs/configuration.md (no changes)
+  Skipped:  docs/architecture.md (no changes)
 
-Commit: <SHA> — "docs: update after HEAD~1 HEAD"
+Commit: <SHA> — "docs: regenerate after HEAD~1 HEAD"
 ```
 
 ---
 
-# Constraints
+# Notes
 
-- **Diff-only**: NEVER read full source files. The git diff is the only input to subagents.
-- **Patch, don't regenerate**: Update affected sections, not entire documents.
-- **Minimal reads**: Only read doc files that need updating. Never inventory the whole repo.
-- **No --all flag**: Full regeneration is intentionally unsupported — it's a token trap.
-- **Scale checks only on add/delete**: Don't count artifacts unless the diff added or removed a file.
+- **Self-contained**: reads the structure spec at runtime so it stays current
+- **Scale-aware**: checks artifact counts to decide flat vs subtree, migrates automatically
+- **Non-destructive**: never removes doc entries for items that still exist in the source
+- **Dry-run safe**: `--dry-run` shows the plan without writing anything
+- **Incremental by default**: only regenerates docs affected by changed files
+- **Full regeneration**: `--all` forces a complete docs refresh
