@@ -18,5 +18,8 @@ __pycache__/
 .vscode/
 *.swp
 
+# Local Claude settings (machine-specific)
+.claude/settings.local.json
+
 # Runtime state
 .cache/
