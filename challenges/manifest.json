@@ -1,0 +1,61 @@
+{
+  "version": "1.0",
+  "challenges": [
+    {
+      "id": "python/off-by-one",
+      "language": "python",
+      "difficulty": "easy",
+      "bug_count": 1,
+      "tags": ["boundary", "loop", "off-by-one"]
+    },
+    {
+      "id": "python/null-handling",
+      "language": "python",
+      "difficulty": "easy",
+      "bug_count": 2,
+      "tags": ["null-reference", "optional", "type-safety"]
+    },
+    {
+      "id": "typescript/type-narrowing",
+      "language": "typescript",
+      "difficulty": "medium",
+      "bug_count": 2,
+      "tags": ["type-narrowing", "discriminated-union", "null-reference"]
+    },
+    {
+      "id": "typescript/async-race",
+      "language": "typescript",
+      "difficulty": "medium",
+      "bug_count": 2,
+      "tags": ["race-condition", "async", "cache", "concurrent-modification"]
+    },
+    {
+      "id": "go/goroutine-leak",
+      "language": "go",
+      "difficulty": "medium",
+      "bug_count": 1,
+      "tags": ["goroutine", "channel", "resource-leak"]
+    },
+    {
+      "id": "go/interface-nil",
+      "language": "go",
+      "difficulty": "hard",
+      "bug_count": 2,
+      "tags": ["nil-interface", "type-assertion", "go-gotcha"]
+    },
+    {
+      "id": "rust/rc-cycle",
+      "language": "rust",
+      "difficulty": "medium",
+      "bug_count": 1,
+      "tags": ["memory-leak", "reference-cycle", "rc", "weak"]
+    },
+    {
+      "id": "rust/unsafe-ub",
+      "language": "rust",
+      "difficulty": "hard",
+      "bug_count": 3,
+      "tags": ["undefined-behavior", "unsafe", "memory-leak", "pointer"]
+    }
+  ]
+}
