@@ -1,0 +1,55 @@
+project:
+  name: claudinho
+  path: .
+  repo: ipedro/claudinho
+
+budget:
+  max_experiments_per_session: 5
+
+gates:
+  # No automated test suite — claudinho is a config repo.
+  # Hard gate: validate JSON/YAML syntax of key config files.
+  - name: validate_settings
+    command: python3 -c "import json; json.load(open('settings.json'))" && echo "settings.json OK"
+  - name: validate_plugins
+    command: python3 -c "import json; json.load(open('plugins/installed_plugins.json'))" && echo "installed_plugins.json OK"
+
+benchmarks:
+  - name: claude-md-line-count
+    command: |
+      COUNT=$(wc -l < CLAUDE.md)
+      echo "{\"claude_md_lines\": $COUNT}"
+    metrics:
+      - name: claude_md_lines
+        extract: "json:.claude_md_lines"
+        direction: lower_is_better
+        tolerance: 0.05
+        significance: 0.10
+
+themes:
+  auto:
+    strategy: weighted_random
+    cooldown_per_theme: 3
+    priorities:
+      documentation: 1
+      refactoring: 1
+
+constraints:
+  forbidden_paths:
+    - autoimprove.yaml
+    - UNBREAKABLE_RULES.md
+    - CLAUDE.md
+    - settings.json
+    - plugins/installed_plugins.json
+    - plugins/known_marketplaces.json
+    - .gitignore
+  test_modification: additive_only
+  trust_ratchet:
+    tier_0: { max_files: 2, max_lines: 50, mode: auto_merge }
+    tier_1: { max_files: 4, max_lines: 100, mode: auto_merge, after_keeps: 5 }
+
+safety:
+  epoch_drift_threshold: 0.10
+  regression_tolerance: 0.0
+  significance_threshold: 0.05
+  stagnation_window: 3

@@ -1,0 +1,58 @@
+project:
+  name: xgh
+  path: .
+  repo: extreme-go-horse/xgh
+
+budget:
+  max_experiments_per_session: 8
+
+gates:
+  - name: bash_tests
+    command: bash tests/run-tests.sh
+  - name: shellcheck
+    command: find skills/ hooks/ scripts/ -name "*.sh" -exec shellcheck {} \; && echo "shellcheck OK"
+
+benchmarks:
+  - name: skill-quality
+    command: |
+      SKILL_COUNT=$(ls skills/*.md 2>/dev/null | wc -l | tr -d ' ')
+      AGENT_COUNT=$(ls agents/*.md 2>/dev/null | wc -l | tr -d ' ')
+      echo "{\"skill_count\": $SKILL_COUNT, \"agent_count\": $AGENT_COUNT}"
+    metrics:
+      - name: skill_count
+        extract: "json:.skill_count"
+        direction: higher_is_better
+        tolerance: 0.0
+        significance: 0.05
+      - name: agent_count
+        extract: "json:.agent_count"
+        direction: higher_is_better
+        tolerance: 0.0
+        significance: 0.05
+
+themes:
+  auto:
+    strategy: weighted_random
+    cooldown_per_theme: 3
+    priorities:
+      test_coverage: 2
+      documentation: 1
+      refactoring: 1
+
+constraints:
+  forbidden_paths:
+    - autoimprove.yaml
+    - tests/run-tests.sh
+    - config/
+    - .xgh/
+  test_modification: additive_only
+  trust_ratchet:
+    tier_0: { max_files: 3, max_lines: 150, mode: auto_merge }
+    tier_1: { max_files: 6, max_lines: 300, mode: auto_merge, after_keeps: 5 }
+    tier_2: { max_files: 10, max_lines: 500, mode: auto_merge, after_keeps: 15 }
+
+safety:
+  epoch_drift_threshold: 0.05
+  regression_tolerance: 0.0
+  significance_threshold: 0.01
+  stagnation_window: 5
