@@ -1,7 +1,7 @@
 ---
 name: adversarial-review
-description: "Run an adversarial Enthusiast→Adversary→Judge debate review on code. Use when the user says 'adversarial review', 'debate review', 'run a review round', 'do a review round', 'review code with debate agents', 'i want an adversarial review', or '/autoimprove review'. Do NOT trigger on generic 'review' requests or PR reviews. Takes a file, diff, or PR as target."
-argument-hint: "[file|diff] [--rounds N] [--single-pass]"
+description: "Run an adversarial Enthusiast→Adversary→Judge debate review on code. Automatically converges — no manual round control needed. Use when the user says 'adversarial review', 'debate review', 'run a review round', 'do a review round', 'review code with debate agents', 'i want an adversarial review', or '/autoimprove review'. Do NOT trigger on generic 'review' requests or PR reviews. Takes a file, diff, or PR as target."
+argument-hint: "[file|diff]"
 allowed-tools: [Read, Glob, Grep, Bash, Agent]
 ---
 
@@ -17,16 +17,8 @@ Run the Enthusiast → Adversary → Judge debate cycle on the given target.
 
 From the user's input, extract:
 - **target**: file path, glob pattern, or "diff" (meaning staged/unstaged git diff)
-- **max_rounds**: hard cap on rounds (default: unlimited, safety cap 10)
-- **single_pass**: if true, run exactly 1 round
 
-If `--single-pass` was passed, set max_rounds to 1.
-
-If `--rounds N` was explicitly passed, use N as a hard cap (minimum 1).
-
-If the user requests fewer rounds without `--rounds` (e.g. "quick review", "just one pass"), set max_rounds to 1. Log: `"User requested quick review — capped at 1 round"`.
-
-**Default (no flags):** run until deterministic convergence, safety cap of 10 rounds.
+The skill always runs until deterministic convergence, with an internal safety cap of 10 rounds.
 The goal is to surface all issues — stop only when the debate has genuinely stabilized.
 
 ---
@@ -69,7 +61,7 @@ mkdir -p ~/.autoimprove/runs/<RUN_ID>
   "run_id": "<RUN_ID>",
   "target": "<target path or diff>",
   "date": "<ISO timestamp>",
-  "rounds_planned": <N>,
+  "rounds_planned": 10,
   "rounds_completed": 0,
   "converged_at_round": null,
   "status": "running",
