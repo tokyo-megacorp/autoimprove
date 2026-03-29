@@ -553,5 +553,121 @@ assert_json_field "no regressions in mixed lower_is_better test" "$result" '.reg
 rm -f "$lib_mixed_config" "$lib_mixed_baseline"
 
 echo ""
+echo "=== Multi-Metric Edge Case Tests ==="
+
+# Test: two metrics both improve by >significance → both in .improved[], verdict is keep
+# metric_a: baseline=100, candidate=120 (+20% > significance=0.01) → improved
+# metric_b: baseline=200, candidate=250 (+25% > significance=0.01) → improved
+# No regressions + two improvements → keep, and BOTH names appear in .improved[]
+echo "--- Test: two metrics both improve → both in improved list ---"
+two_improve_baseline=$(mktemp)
+echo '{"metrics":{"metric_a":100,"metric_b":200},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$two_improve_baseline"
+two_improve_config=$(mktemp)
+cat > "$two_improve_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "two-improve-bench",
+      "command": "echo '{\"metric_a\": 120, \"metric_b\": 250}'",
+      "metrics": [
+        {
+          "name": "metric_a",
+          "extract": "json:.metric_a",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        },
+        {
+          "name": "metric_b",
+          "extract": "json:.metric_b",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$two_improve_config" "$two_improve_baseline" 2>/dev/null)
+assert_json_field "two-improve verdict is keep" "$result" '.verdict' 'keep'
+assert_json_field "metric_a in improved" "$result" '.improved | contains(["metric_a"])' 'true'
+assert_json_field "metric_b in improved" "$result" '.improved | contains(["metric_b"])' 'true'
+assert_json_field "improved list length is 2" "$result" '.improved | length' '2'
+assert_json_field "no regressions when both improve" "$result" '.regressed | length' '0'
+rm -f "$two_improve_config" "$two_improve_baseline"
+
+# Test: all metrics regress simultaneously → all appear in .regressed[], verdict is regress
+# metric_a: baseline=100, candidate=70 (-30% < -tolerance=0.02) → regressed
+# metric_b: baseline=200, candidate=140 (-30% < -tolerance=0.02) → regressed
+# Both regressed → verdict is regress and BOTH names appear in .regressed[]
+echo "--- Test: all metrics regress → all in regressed list ---"
+all_regress_baseline=$(mktemp)
+echo '{"metrics":{"metric_a":100,"metric_b":200},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$all_regress_baseline"
+all_regress_config=$(mktemp)
+cat > "$all_regress_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "all-regress-bench",
+      "command": "echo '{\"metric_a\": 70, \"metric_b\": 140}'",
+      "metrics": [
+        {
+          "name": "metric_a",
+          "extract": "json:.metric_a",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        },
+        {
+          "name": "metric_b",
+          "extract": "json:.metric_b",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$all_regress_config" "$all_regress_baseline" 2>/dev/null)
+assert_json_field "all-regress verdict is regress" "$result" '.verdict' 'regress'
+assert_json_field "metric_a in regressed" "$result" '.regressed | contains(["metric_a"])' 'true'
+assert_json_field "metric_b in regressed" "$result" '.regressed | contains(["metric_b"])' 'true'
+assert_json_field "regressed list length is 2" "$result" '.regressed | length' '2'
+assert_json_field "improved is empty when all regress" "$result" '.improved | length' '0'
+rm -f "$all_regress_config" "$all_regress_baseline"
+
+# Test: second gate fails — verify gates[0].passed=true AND gates[1].passed=false AND verdict=gate_fail
+# This closes gap 4+5: the combination of first-gate-passes + second-gate-fails + correct verdict field.
+echo "--- Test: second gate fails — gates[0].passed=true, gates[1].passed=false, verdict=gate_fail ---"
+second_gate_detail_config=$(mktemp)
+cat > "$second_gate_detail_config" <<EOF
+{
+  "gates": [
+    {"name": "first-pass", "command": "true"},
+    {"name": "second-fail", "command": "false"}
+  ],
+  "benchmarks": [],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$second_gate_detail_config" /dev/null 2>/dev/null)
+assert_json_field "verdict is gate_fail when second gate fails" "$result" '.verdict' 'gate_fail'
+assert_json_field "first gate passed=true" "$result" '.gates[0].passed' 'true'
+assert_json_field "first gate name correct" "$result" '.gates[0].name' 'first-pass'
+assert_json_field "second gate passed=false" "$result" '.gates[1].passed' 'false'
+assert_json_field "second gate name correct" "$result" '.gates[1].name' 'second-fail'
+rm -f "$second_gate_detail_config"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
