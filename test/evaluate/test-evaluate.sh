@@ -738,5 +738,40 @@ assert_json_field "all-regress: improved is empty" "$result" '.improved | length
 rm -f "$all_regress_config" "$all_regress_baseline"
 
 echo ""
+echo "=== verdict_logic, exit_code, and duration_ms Type Tests ==="
+
+# Test: gate_fail verdict_logic is "gate_fast_fail" (not "gate_fail")
+echo "--- Test: gate_fail has verdict_logic=gate_fast_fail ---"
+gf_vl_config=$(mktemp)
+echo '{"gates":[{"name":"fail-vl","command":"false"}],"benchmarks":[],"regression_tolerance":0.02,"significance_threshold":0.01}' > "$gf_vl_config"
+result=$("$EVALUATE" "$gf_vl_config" /dev/null 2>/dev/null)
+assert_json_field "gate_fail verdict_logic is gate_fast_fail" "$result" '.verdict_logic' 'gate_fast_fail'
+assert_json_field "gate_fail verdict is gate_fail" "$result" '.verdict' 'gate_fail'
+rm -f "$gf_vl_config"
+
+# Test: gate exit_code stores the actual non-zero exit code from the command
+echo "--- Test: failing gate stores actual exit_code value ---"
+ec_config=$(mktemp)
+# 'exit 42' should record exit_code=42 in gate output
+cat > "$ec_config" <<EOF
+{
+  "gates": [{"name": "exit-42-gate", "command": "bash -c 'exit 42'"}],
+  "benchmarks": [],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$ec_config" /dev/null 2>/dev/null)
+assert_json_field "exit_code is 42" "$result" '.gates[0].exit_code' '42'
+assert_json_field "gate with exit 42 is not passed" "$result" '.gates[0].passed' 'false'
+rm -f "$ec_config"
+
+# Test: gates[].duration_ms is a JSON number type (not a string)
+echo "--- Test: gate duration_ms is JSON number type ---"
+result=$("$EVALUATE" "$FIXTURES/config-gates-only.json" /dev/null 2>/dev/null)
+assert_json_field "duration_ms is number type" "$result" '.gates[0].duration_ms | type' 'number'
+assert_json_field "exit_code is number type" "$result" '.gates[0].exit_code | type' 'number'
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
