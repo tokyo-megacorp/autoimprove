@@ -31,20 +31,51 @@ benchmarks:
         tolerance: 0.0
         significance: 0.0
 
+  - name: skill-coverage
+    command: |
+      COUNT=$(find skills/ -name "SKILL.md" -exec grep -l ".\{50\}" {} \; | wc -l | tr -d ' ')
+      TOTAL=$(find skills/ -name "SKILL.md" | wc -l | tr -d ' ')
+      echo "{\"skill_doc_coverage\": $COUNT, \"skill_total\": $TOTAL}"
+    metrics:
+      - name: skill_doc_coverage
+        extract: "json:.skill_doc_coverage"
+        direction: higher_is_better
+        tolerance: 0.0
+        significance: 0.01
+
+  - name: agent-completeness
+    command: |
+      COUNT=$(find agents/ -name "*.md" | while read f; do [ $(wc -l < "$f") -ge 20 ] && echo "$f"; done | wc -l | tr -d ' ')
+      echo "{\"agent_completeness\": $COUNT}"
+    metrics:
+      - name: agent_completeness
+        extract: "json:.agent_completeness"
+        direction: higher_is_better
+        tolerance: 0.0
+        significance: 0.01
+
 themes:
   auto:
     strategy: weighted_random
     cooldown_per_theme: 3
     priorities:
       test_coverage: 1
+      skill_quality: 2        # improve SKILL.md descriptions, examples, triggers
+      agent_prompts: 2        # improve agent instructions for better accuracy
+      command_docs: 1         # improve command descriptions and argument hints
+      refactoring: 1
 
 constraints:
   forbidden_paths:
-    - autoimprove.yaml
-    - scripts/evaluate.sh
-    - benchmark/**
-    - .claude-plugin/**
-    - .claude/**
+    - autoimprove.yaml          # never auto-modify config
+    - scripts/evaluate.sh       # gate script is sacred
+    - benchmark/**              # benchmark scripts are sacred
+    - .claude-plugin/**         # plugin cache — not source
+    - .claude/**                # local claude config
+    - package.json              # dependency manifest
+    - package-lock.json
+    # tests/ governed by test_modification: additive_only (not forbidden_paths)
+    # skills/, commands/, agents/ are INTENTIONALLY NOT forbidden — they should evolve
   test_modification: additive_only
   trust_ratchet:
     tier_0: { max_files: 3, max_lines: 150, mode: auto_merge }

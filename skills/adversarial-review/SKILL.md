@@ -235,7 +235,7 @@ as flat arrays, each entry tagged with the round it was discovered in:
   "total_rounds": 4,
   "converged_at_round": null,
   "confirmed": [
-    { "id": "F2", "severity": "critical", "winner": "adversary", "round": 1, "file": "src/example.ts", "line": 42, "source": "enthusiast", "resolution": "..." }
+    { "id": "F2", "severity": "critical", "winner": "enthusiast", "round": 1, "file": "src/example.ts", "line": 42, "source": "enthusiast", "resolution": "..." }
   ],
   "debunked": [
     { "id": "F4", "round": 1, "reason": "..." }
@@ -265,7 +265,7 @@ After formatting output, finalize the run folder (if `RUN_DIR` is set).
   },
   "rounds": [ <ROUNDS array> ],
   "confirmed": [
-    { "id": "F1", "severity": "high", "winner": "adversary", "round": 1, "file": "src/example.ts", "line": 42, "source": "enthusiast", "resolution": "...", "edit_instruction": "..." }
+    { "id": "F1", "severity": "high", "winner": "enthusiast", "round": 1, "file": "src/example.ts", "line": 42, "source": "enthusiast", "resolution": "...", "edit_instruction": "..." }
   ],
   "debunked": [
     { "id": "F4", "round": 1, "reason": "..." }
