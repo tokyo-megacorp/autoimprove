@@ -1260,5 +1260,136 @@ assert_json_field "duration_ms is number type" "$result" '.gates[0].duration_ms 
 assert_json_field "exit_code is number type" "$result" '.gates[0].exit_code | type' 'number'
 
 echo ""
+echo "=== Zero-Baseline, Zero-Significance, and Multi-Bench Accumulation Tests ==="
+
+# Test: baseline = 0, candidate > 0 → delta_pct clamped to 1 (100%) → keep when significance < 1
+echo "--- Test: baseline=0, candidate>0 → delta_pct=100% → verdict keep ---"
+zero_base_config=$(mktemp)
+cat > "$zero_base_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "zero-base-bench",
+      "command": "echo '{\"score\": 5}'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+zero_base_baseline=$(mktemp)
+echo '{"metrics":{"score":0},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$zero_base_baseline"
+result=$("$EVALUATE" "$zero_base_config" "$zero_base_baseline" 2>/dev/null)
+assert_json_field "zero-base: verdict is keep (0→5 is improvement)" "$result" '.verdict' 'keep'
+assert_json_field "zero-base: score in improved" "$result" '.improved | contains(["score"])' 'true'
+assert_json_field "zero-base: score not in regressed" "$result" '.regressed | contains(["score"])' 'false'
+assert_json_field "zero-base: delta_pct is 100 (1*100)" "$result" '.metrics.score.delta_pct' '100'
+rm -f "$zero_base_config" "$zero_base_baseline"
+
+# Test: significance: 0 → any positive change triggers keep (even tiny improvement)
+echo "--- Test: significance=0 → any positive change is significant → keep ---"
+zero_sig_config=$(mktemp)
+cat > "$zero_sig_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "zero-sig-bench",
+      "command": "echo '{\"score\": 100.001}'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0
+}
+EOF
+zero_sig_baseline=$(mktemp)
+echo '{"metrics":{"score":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$zero_sig_baseline"
+result=$("$EVALUATE" "$zero_sig_config" "$zero_sig_baseline" 2>/dev/null)
+assert_json_field "zero-sig: verdict is keep (any positive change counts)" "$result" '.verdict' 'keep'
+assert_json_field "zero-sig: score in improved" "$result" '.improved | contains(["score"])' 'true'
+rm -f "$zero_sig_config" "$zero_sig_baseline"
+
+# Test: third benchmark's improved metric is counted even when first two benchmarks are neutral
+echo "--- Test: third benchmark improvement counted when first two are neutral ---"
+multi_bench_config=$(mktemp)
+cat > "$multi_bench_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "bench-neutral-1",
+      "command": "echo '{\"a\": 100}'",
+      "metrics": [
+        {
+          "name": "a",
+          "extract": "json:.a",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    },
+    {
+      "name": "bench-neutral-2",
+      "command": "echo '{\"b\": 100}'",
+      "metrics": [
+        {
+          "name": "b",
+          "extract": "json:.b",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    },
+    {
+      "name": "bench-improved-3",
+      "command": "echo '{\"c\": 120}'",
+      "metrics": [
+        {
+          "name": "c",
+          "extract": "json:.c",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+multi_bench_baseline=$(mktemp)
+# a and b are unchanged (neutral), c improves from 100 to 120 (+20%)
+echo '{"metrics":{"a":100,"b":100,"c":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$multi_bench_baseline"
+result=$("$EVALUATE" "$multi_bench_config" "$multi_bench_baseline" 2>/dev/null)
+assert_json_field "multi-bench: verdict is keep (third bench improved)" "$result" '.verdict' 'keep'
+assert_json_field "multi-bench: c in improved" "$result" '.improved | contains(["c"])' 'true'
+assert_json_field "multi-bench: a not in improved (neutral)" "$result" '.improved | contains(["a"])' 'false'
+assert_json_field "multi-bench: b not in improved (neutral)" "$result" '.improved | contains(["b"])' 'false'
+assert_json_field "multi-bench: regressed is empty" "$result" '.regressed | length' '0'
+rm -f "$multi_bench_config" "$multi_bench_baseline"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
