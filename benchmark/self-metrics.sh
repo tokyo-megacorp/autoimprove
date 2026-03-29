@@ -49,4 +49,31 @@ for agent_file in "$DIR/agents"/*.md; do
   fi
 done
 
-echo "{\"test_count\": $test_count, \"broken_constraints\": $broken_constraints, \"broken_refs\": $broken_refs, \"skill_doc_coverage\": $skill_doc_coverage, \"agent_completeness\": $agent_completeness}"
+# skill_depth: average line count across all SKILL.md files
+skill_depth=0
+skill_file_count=0
+for skill_dir in "$DIR/skills"/*/; do
+  if [ -f "$skill_dir/SKILL.md" ]; then
+    lines=$(wc -l < "$skill_dir/SKILL.md")
+    skill_depth=$((skill_depth + lines))
+    skill_file_count=$((skill_file_count + 1))
+  fi
+done
+if [ "$skill_file_count" -gt 0 ]; then
+  skill_depth=$((skill_depth / skill_file_count))
+fi
+
+# agent_sections: count of agents with all required sections (description, when-to-use, constraints)
+agent_sections=0
+for agent_file in "$DIR/agents"/*.md; do
+  [ -f "$agent_file" ] || continue
+  has_desc=0
+  has_when=0
+  has_constraints=0
+  grep -qi "^description:" "$agent_file" 2>/dev/null && has_desc=1 || true
+  grep -qi "when.to.use\|when to use\|## when" "$agent_file" 2>/dev/null && has_when=1 || true
+  grep -qi "constraint\|forbidden\|never\|must not" "$agent_file" 2>/dev/null && has_constraints=1 || true
+  [ "$has_desc" -eq 1 ] && [ "$has_when" -eq 1 ] && [ "$has_constraints" -eq 1 ] && agent_sections=$((agent_sections + 1)) || true
+done
+
+echo "{\"test_count\": $test_count, \"broken_constraints\": $broken_constraints, \"broken_refs\": $broken_refs, \"skill_doc_coverage\": $skill_doc_coverage, \"agent_completeness\": $agent_completeness, \"skill_depth\": $skill_depth, \"agent_sections\": $agent_sections}"

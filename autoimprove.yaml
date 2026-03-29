@@ -54,6 +54,21 @@ benchmarks:
         tolerance: 0.0
         significance: 0.01
 
+  - name: prompt-quality
+    command: bash benchmark/self-metrics.sh
+    metrics:
+      - name: skill_depth
+        extract: "json:.skill_depth"
+        direction: higher_is_better
+        tolerance: 0.0
+        significance: 0.01
+
+      - name: agent_sections
+        extract: "json:.agent_sections"
+        direction: higher_is_better
+        tolerance: 0.0
+        significance: 0.01
+
 themes:
   auto:
     strategy: weighted_random
