@@ -175,6 +175,19 @@ fi
 
 ---
 
+## 2h. Pre-flight: Validate benchmarks
+
+Before entering the experiment loop, verify all benchmarks produce the expected metrics:
+
+1. Run each benchmark command from `autoimprove.yaml`
+2. Verify ALL expected metric names appear in the output
+3. If any metric is missing: **STOP** and fix the benchmark before running experiments
+4. Log: `[PREFLIGHT: N/N metrics validated]` (e.g. `[PREFLIGHT: 3/3 metrics validated]`)
+
+A benchmark that silently fails (exits 0 but omits metrics) will produce misleading verdicts. Validate now, not after experiments run.
+
+---
+
 # 3. Experiment Loop
 
 Read `references/loop.md` and execute the full experiment loop (sections 3a–3m) and session end (section 4). Maintain all session state (counters, config, baselines) in this same context throughout — do not delegate to a subagent.
