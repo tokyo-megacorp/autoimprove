@@ -75,6 +75,11 @@ If `FOCUS` is empty (unknown theme or no matches), spawn experimenter with full 
 
 ## 3g. Spawn Experimenter
 
+> **KNOWN ISSUE: `isolation:"worktree"` CWD**
+> `Agent(isolation: "worktree")` creates the worktree from the SESSION's CWD (`~/.claude`),
+> not the target repo. For cross-repo grind loops: use manual `git worktree add` from the
+> target repo directory. Do NOT rely on `isolation:"worktree"` when CWD ≠ target repo.
+
 Build the experimenter prompt with:
 - Theme name
 - Constraints: `max_files`, `max_lines`

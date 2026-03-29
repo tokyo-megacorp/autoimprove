@@ -91,6 +91,16 @@ Trust escalation: the system earns scope through demonstrated competence (0 regr
   - Known TODOs and lint warnings for the experimenter to find
 - Integration test: run 3 experiments on test-project, verify at least 1 keep and 1 discard
 
+## Gotchas
+
+### `isolation:"worktree"` uses session CWD, not target repo
+
+`Agent(isolation: "worktree")` creates the worktree from the **session's CWD** (`~/.claude`), not from the target project directory. If you're running autoimprove from the orchestrator session (which lives in `~/.claude`), the worktree is created there — not inside the target repo.
+
+**Fix:** Use manual `git worktree add` from inside the target repo directory instead. Do NOT rely on `isolation:"worktree"` when CWD ≠ target repo.
+
+---
+
 ## Related Projects
 
 - **autoresearch** (`~/Developer/autoresearch`): The inspiration. Study `program.md` and `train.py` for the mental model.
