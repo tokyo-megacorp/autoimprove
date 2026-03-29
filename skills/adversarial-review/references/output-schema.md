@@ -132,6 +132,24 @@ All runs are stored privately in `~/.autoimprove/` — never in the project or p
 
 ---
 
+## Severity Classification Guide
+
+All agents use the same four levels. Use these definitions consistently:
+
+| Level | Criteria | Examples |
+|-------|----------|---------|
+| `critical` | Exploitable without preconditions, or causes data loss / incorrect output in the **normal code path**. No mitigation exists in the current code. | SQL injection with unsanitized input; integer overflow in a hot-path calculation that corrupts output; secret written to a log file on every run |
+| `high` | Real defect that causes incorrect behavior, but requires a precondition to trigger (uncommon input, specific race, crash-then-restart, etc.). No data loss in the happy path. | Null dereference reachable only when an optional field is absent; resource leak under high load; deadlock that requires a prior crash to reach |
+| `medium` | Incorrect behavior in an edge case that is unlikely in production, or a missing defensive check whose absence doesn't break the happy path today but could with future code changes. | Missing input validation on an internal API; confusing naming that will cause a future mis-use; error message leaks internal path but no attacker-reachable surface |
+| `low` | No behavior impact. Style, clarity, dead code, or minor inefficiency. | Unused variable; O(n²) in a non-hot path; inconsistent naming convention; stale comment |
+
+**Common misclassifications to avoid:**
+- Systemic design issues that require a specific sequence of failures to manifest → `high`, not `critical`
+- Missing a null check when null is theoretically possible but callers always pass non-null → `medium`, not `high`
+- Race conditions that are only exploitable by a concurrent actor that already has write access → `high`, not `critical`
+
+---
+
 ## Patterns Observed from Real Runs
 
 These patterns emerged from actual usage and inform judge calibration:

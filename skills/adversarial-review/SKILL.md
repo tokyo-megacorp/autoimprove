@@ -161,16 +161,19 @@ Output your rulings as a single JSON object matching the schema. Nothing else.
 
 Convergence is only meaningful from round 2 onward.
 
-**Deterministic check (orchestrator-side):** When `round > 1`, compute convergence independently by comparing this round's rulings to the prior round's rulings:
-- Extract the set of `(finding_id, winner, final_severity)` tuples from both rounds
-- If the sets are identical (same IDs, same winners, same severities in any order) → `converged = true`
+**Empty-findings shortcut:** If the Enthusiast returned `{"findings": []}` this round (step 3a), the debate is exhausted — there is nothing new to arbitrate. Set `converged = true` immediately, skip 3b/3c, and record `converged_at_round = round`. This is the most common convergence path in later rounds.
+
+**Deterministic check (orchestrator-side):** When `round > 1` and Enthusiast did find issues, compute convergence by comparing this round's judge rulings to the prior round's judge rulings:
+- Extract the set of `(file, line, winner, final_severity)` tuples from both rounds (use `file`+`line` as identity, not `finding_id` — IDs reset each round and are not stable across rounds)
+- If the sets are identical (same locations, same winners, same severities in any order) → `converged = true`
 - This overrides whatever the Judge reported
+- If a ruling has `file: null`, use `(null, resolution_text_hash, winner, final_severity)` as the tuple — hash the first 60 characters of `resolution` to fingerprint architectural findings
 
 **LLM check (supplemental):** Also check what the Judge reported. If Judge says `convergence: true` but the deterministic check says `false`, log: `"Judge reported convergence but rulings differ — continuing."` and continue.
 
 **Round 1 guard:** If `round == 1` and Judge returned `convergence: true` → treat as `false`. Log: `"convergence: true ignored on round 1."` Continue to round 2.
 
-**Stop condition:** Stop the loop early when `converged = true` (deterministic). Record `converged_at_round = round`.
+**Stop condition:** Stop the loop early when `converged = true` (either path above). Record `converged_at_round = round`.
 
 ## 3e. Store Round
 
