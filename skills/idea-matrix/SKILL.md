@@ -1,6 +1,25 @@
 ---
 name: idea-matrix
-description: "Use when the user says 'idea matrix', 'explore combinations', 'run idea matrix', '3x3 matrix', '/idea-matrix', or wants to systematically evaluate design options with parallel haiku agents. Takes a problem statement and 3+ design options, spawns 9 haiku agents to explore individual options and pairwise/composite combinations, and synthesizes a convergence report showing which design emerged strongest."
+description: |
+  Invoke for 'idea matrix', '/idea-matrix', '3x3 matrix', 'convergence report', or to evaluate 3+ design options. Spawns parallel haiku agents to score options and pairwise combinations, synthesizes a convergence report.
+
+  <example>
+  user: "Run idea matrix: A: Redis, B: in-memory LRU, C: file cache"
+  assistant: I'll use idea-matrix to score all three options and their combinations.
+  <commentary>Explicit invocation with inline options.</commentary>
+  </example>
+
+  <example>
+  user: "We've discussed hooks, skills, and stop-hooks. Which is strongest?"
+  assistant: I'll run idea-matrix on the three options to surface the strongest design.
+  <commentary>Options exist in context — converge mid-brainstorm without re-prompting user.</commentary>
+  </example>
+
+  <example>
+  user: "Give me a convergence report on JWT vs session cookies vs OAuth."
+  assistant: I'll use idea-matrix to generate a convergence report across all three strategies.
+  <commentary>"Convergence report" is a direct trigger phrase.</commentary>
+  </example>
 argument-hint: "<problem statement> + <options list>"
 allowed-tools: [Read, Glob, Grep, Bash, Agent]
 ---
@@ -215,10 +234,25 @@ This reveals which dimensions are consistent across options (all cells score sim
 Rank cells by composite score (average of all 4 dimensions). Then analyze:
 - **Top scorer**: Which cell has the highest composite? Is it a solo, hybrid, or creative option?
 - **Dealbreaker filter**: Eliminate any cells flagged as dealbreakers
-- **Score band distribution**: Count cells by band — strong (4-5 avg), neutral (3 avg), weak (1-2 avg). A matrix with 7 neutral cells suggests the options are poorly differentiated.
+- **Score band distribution**: Count cells by band — strong (4-5 avg), neutral (3 avg), weak (1-2 avg).
 - **Cluster analysis**: Do hybrid cells score consistently higher than solos? Does this suggest combination is the right path?
 - **Top insights**: Cherry-pick the 3-5 most impactful surprises across all 9 cells. These are the findings that change the trade-off calculus.
 - **Risk patterns**: Are there risks that appear across multiple cells?
+
+**§6c-i — Poor-Differentiation Protocol**
+
+If 7 or more of the 9 cells land in the neutral band (avg 2.5–3.5), the matrix has failed to differentiate the options. **Do not fabricate a winner.** Instead:
+
+| Diagnosis | Signal | Recovery Action |
+|-----------|--------|-----------------|
+| Options are too similar | Solos score nearly identically | Stop. Ask the user to replace 1-2 options with genuinely different approaches. |
+| Problem statement is too vague | Agents score based on different assumptions | Stop. Ask the user to clarify the specific decision constraint (e.g., "optimize for X given constraint Y"). |
+| Agent score collapse | Most cells return 3 across all 4 dimensions | Re-run cells 8 and 9 with explicit instruction to be contrarian and differentiate. |
+
+When this protocol triggers:
+- Set `verdict_type: "no_clear_winner"` in the JSON output.
+- Write the Recommended Design section as: "**No winner emerged.** [Diagnosis]. [Recovery action]."
+- Do NOT rank options from 1–9 as if a winner exists — this misleads the user.
 
 **6d. Recommended Design**
 
