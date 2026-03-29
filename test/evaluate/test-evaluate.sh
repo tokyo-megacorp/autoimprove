@@ -1077,5 +1077,153 @@ fi
 rm -f "$bench_config" "$regress_baseline"
 
 echo ""
+echo "=== New Metric / Benchmark Failure / Compare Mode / All-Regress Tests ==="
+
+# Test: new metric in candidate not present in baseline → skipped (not counted as improvement)
+# The scoring loop does: if [ -z "$baseline_val" ]; then continue — so new metrics are ignored.
+echo "--- Test: new metric in candidate absent from baseline is skipped ---"
+new_metric_config=$(mktemp)
+cat > "$new_metric_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "new-metric-bench",
+      "command": "echo '{\"old\": 110, \"new_metric\": 99}'",
+      "metrics": [
+        {
+          "name": "old",
+          "extract": "json:.old",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        },
+        {
+          "name": "new_metric",
+          "extract": "json:.new_metric",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+# baseline only has "old"; "new_metric" is absent → new_metric should be skipped entirely
+new_metric_baseline=$(mktemp)
+echo '{"metrics":{"old":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$new_metric_baseline"
+result=$("$EVALUATE" "$new_metric_config" "$new_metric_baseline" 2>/dev/null)
+# old improved (100→110, +10%), new_metric has no baseline so skipped
+assert_json_field "new-metric: old is in improved" "$result" '.improved | contains(["old"])' 'true'
+assert_json_field "new-metric: new_metric NOT in improved" "$result" '.improved | contains(["new_metric"])' 'false'
+assert_json_field "new-metric: new_metric NOT in regressed" "$result" '.regressed | contains(["new_metric"])' 'false'
+assert_json_field "new-metric: verdict is keep (old improved)" "$result" '.verdict' 'keep'
+# new_metric should not appear in scored metrics (no baseline to compare against)
+has_new_metric=$(echo "$result" | jq 'has("new_metric")')
+assert_eq "new-metric: new_metric absent from top-level result keys" "false" "$has_new_metric"
+rm -f "$new_metric_config" "$new_metric_baseline"
+
+# Test: benchmark command exits non-zero → metric extraction produces no output → metric skipped → neutral
+echo "--- Test: benchmark command exits non-zero → metric skipped → neutral ---"
+fail_bench_config=$(mktemp)
+cat > "$fail_bench_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "failing-bench",
+      "command": "exit 1",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+fail_bench_baseline=$(mktemp)
+echo '{"metrics":{"score":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$fail_bench_baseline"
+result=$("$EVALUATE" "$fail_bench_config" "$fail_bench_baseline" 2>/dev/null)
+# Gates pass, benchmark exits non-zero → no metric output → candidate_val empty → skip → neutral
+assert_json_field "failing-bench: verdict is neutral (metric skipped)" "$result" '.verdict' 'neutral'
+assert_json_field "failing-bench: improved is empty" "$result" '.improved | length' '0'
+assert_json_field "failing-bench: regressed is empty" "$result" '.regressed | length' '0'
+rm -f "$fail_bench_config" "$fail_bench_baseline"
+
+# Test: compare mode output does NOT include a "mode" field (mode only appears in init output)
+echo "--- Test: compare mode output has no mode field ---"
+compare_bench_config=$(mktemp)
+sed "s|FIXTURES_DIR|$FIXTURES|g" "$FIXTURES/config-basic.json" > "$compare_bench_config"
+result=$("$EVALUATE" "$compare_bench_config" "$FIXTURES/baseline-basic.json" 2>/dev/null)
+mode_field=$(echo "$result" | jq 'has("mode")')
+assert_eq "compare output has no mode field" "false" "$mode_field"
+assert_json_field "compare output has verdict field" "$result" '.verdict' 'keep'
+assert_json_field "compare output has verdict_logic field" "$result" '.verdict_logic' 'no_regressions_and_at_least_one_improvement'
+rm -f "$compare_bench_config"
+
+# Test: ALL metrics regress → regress verdict with full regressed array
+echo "--- Test: all metrics regress → regress verdict with full regressed array ---"
+all_regress_config=$(mktemp)
+cat > "$all_regress_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "all-regress-bench",
+      "command": "echo '{\"a\": 50, \"b\": 60, \"c\": 70}'",
+      "metrics": [
+        {
+          "name": "a",
+          "extract": "json:.a",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        },
+        {
+          "name": "b",
+          "extract": "json:.b",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        },
+        {
+          "name": "c",
+          "extract": "json:.c",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+# baseline: a=100, b=100, c=100 → candidate: a=50(-50%), b=60(-40%), c=70(-30%) — all regress
+all_regress_baseline=$(mktemp)
+echo '{"metrics":{"a":100,"b":100,"c":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$all_regress_baseline"
+result=$("$EVALUATE" "$all_regress_config" "$all_regress_baseline" 2>/dev/null)
+assert_json_field "all-regress: verdict is regress" "$result" '.verdict' 'regress'
+assert_json_field "all-regress: verdict_logic is regression_detected" "$result" '.verdict_logic' 'regression_detected'
+regressed_len=$(echo "$result" | jq '.regressed | length')
+assert_eq "all-regress: regressed array has 3 entries" "3" "$regressed_len"
+assert_json_field "all-regress: a in regressed" "$result" '.regressed | contains(["a"])' 'true'
+assert_json_field "all-regress: b in regressed" "$result" '.regressed | contains(["b"])' 'true'
+assert_json_field "all-regress: c in regressed" "$result" '.regressed | contains(["c"])' 'true'
+assert_json_field "all-regress: improved is empty" "$result" '.improved | length' '0'
+rm -f "$all_regress_config" "$all_regress_baseline"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
