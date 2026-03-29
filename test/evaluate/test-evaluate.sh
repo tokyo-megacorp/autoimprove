@@ -2124,5 +2124,273 @@ assert_json_field "empty-init: metrics is empty (command had no output)" "$resul
 rm -f "$empty_init_config"
 
 echo ""
+echo "=== Boundary Just-Past Tests ==="
+
+# Test: regression just past tolerance boundary → regress (strict < triggers here)
+# val: baseline=100, candidate=97.9 → delta=-2.1%, tolerance=0.02 → -0.021 < -0.02 is TRUE → regress
+echo "--- Test: regression just past tolerance boundary → regress ---"
+just_past_regress_config=$(mktemp)
+cat > "$just_past_regress_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "just-past-regress-bench",
+      "command": "echo '{\"val\": 97.9}'",
+      "metrics": [
+        {
+          "name": "val",
+          "extract": "json:.val",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+just_past_regress_baseline=$(mktemp)
+echo '{"metrics":{"val":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$just_past_regress_baseline"
+result=$("$EVALUATE" "$just_past_regress_config" "$just_past_regress_baseline" 2>/dev/null)
+assert_json_field "just-past-tol: verdict is regress (delta=-2.1% past -2% tolerance)" "$result" '.verdict' 'regress'
+assert_json_field "just-past-tol: val in regressed" "$result" '.regressed | contains(["val"])' 'true'
+assert_json_field "just-past-tol: verdict_logic is regression_detected" "$result" '.verdict_logic' 'regression_detected'
+rm -f "$just_past_regress_config" "$just_past_regress_baseline"
+
+# Test: improvement just past significance threshold → keep (strict > triggers here)
+# val: baseline=100, candidate=101.2 → delta=1.2% > significance=0.01 → improved → keep
+echo "--- Test: improvement just past significance threshold → keep ---"
+just_past_sig_config=$(mktemp)
+cat > "$just_past_sig_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "just-past-sig-bench",
+      "command": "echo '{\"val\": 101.2}'",
+      "metrics": [
+        {
+          "name": "val",
+          "extract": "json:.val",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+just_past_sig_baseline=$(mktemp)
+echo '{"metrics":{"val":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$just_past_sig_baseline"
+result=$("$EVALUATE" "$just_past_sig_config" "$just_past_sig_baseline" 2>/dev/null)
+assert_json_field "just-past-sig: verdict is keep (delta=+1.2% past 1% significance)" "$result" '.verdict' 'keep'
+assert_json_field "just-past-sig: val in improved" "$result" '.improved | contains(["val"])' 'true'
+assert_json_field "just-past-sig: regressed is empty" "$result" '.regressed | length' '0'
+rm -f "$just_past_sig_config" "$just_past_sig_baseline"
+
+echo ""
+echo "=== Init Mode Absent Field Tests ==="
+
+# Test: init mode output has no verdict field (verdict only appears in compare mode)
+echo "--- Test: init mode output has no verdict field ---"
+no_verdict_init_config=$(mktemp)
+cat > "$no_verdict_init_config" <<EOF
+{
+  "gates": [],
+  "benchmarks": [
+    {
+      "name": "no-verdict-bench",
+      "command": "echo '{\"x\": 5}'",
+      "metrics": [{"name": "x", "extract": "json:.x", "direction": "higher_is_better", "tolerance": 0.02, "significance": 0.01}]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$no_verdict_init_config" /dev/null 2>/dev/null)
+has_verdict=$(echo "$result" | jq 'has("verdict")')
+assert_eq "init mode: no verdict field in output" "false" "$has_verdict"
+has_vl=$(echo "$result" | jq 'has("verdict_logic")')
+assert_eq "init mode: no verdict_logic field in output" "false" "$has_vl"
+assert_json_field "init mode: mode field is init" "$result" '.mode' 'init'
+rm -f "$no_verdict_init_config"
+
+echo ""
+echo "=== Reason Field Content Tests ==="
+
+# Test: regress reason string contains the regressed metric name(s)
+echo "--- Test: regress reason string mentions the regressed metric name ---"
+reason_regress_named_config=$(mktemp)
+cat > "$reason_regress_named_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "reason-bench",
+      "command": "echo '{\"throughput\": 40}'",
+      "metrics": [
+        {
+          "name": "throughput",
+          "extract": "json:.throughput",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+reason_regress_named_baseline=$(mktemp)
+echo '{"metrics":{"throughput":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$reason_regress_named_baseline"
+result=$("$EVALUATE" "$reason_regress_named_config" "$reason_regress_named_baseline" 2>/dev/null)
+assert_json_field "reason-regress: verdict is regress" "$result" '.verdict' 'regress'
+reason_str=$(echo "$result" | jq -r '.reason')
+if echo "$reason_str" | grep -q "throughput"; then
+  echo "  PASS: regress reason mentions 'throughput' (got: $reason_str)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: regress reason should mention 'throughput' (got: $reason_str)"
+  ((FAIL++)) || true
+fi
+rm -f "$reason_regress_named_config" "$reason_regress_named_baseline"
+
+# Test: keep reason string contains the improved metric name
+echo "--- Test: keep reason string mentions the improved metric name ---"
+reason_keep_named_config=$(mktemp)
+cat > "$reason_keep_named_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "reason-keep-bench",
+      "command": "echo '{\"coverage\": 85}'",
+      "metrics": [
+        {
+          "name": "coverage",
+          "extract": "json:.coverage",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+reason_keep_named_baseline=$(mktemp)
+echo '{"metrics":{"coverage":70},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$reason_keep_named_baseline"
+result=$("$EVALUATE" "$reason_keep_named_config" "$reason_keep_named_baseline" 2>/dev/null)
+assert_json_field "reason-keep: verdict is keep" "$result" '.verdict' 'keep'
+reason_keep_str=$(echo "$result" | jq -r '.reason')
+if echo "$reason_keep_str" | grep -q "coverage"; then
+  echo "  PASS: keep reason mentions 'coverage' (got: $reason_keep_str)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: keep reason should mention 'coverage' (got: $reason_keep_str)"
+  ((FAIL++)) || true
+fi
+rm -f "$reason_keep_named_config" "$reason_keep_named_baseline"
+
+echo ""
+echo "=== Multi-Bench Regression Accumulation Tests ==="
+
+# Test: first benchmark neutral, second benchmark regresses → overall regress
+# bench-1: metric_x baseline=100, candidate=100 → neutral
+# bench-2: metric_y baseline=100, candidate=50 → -50% regression → regress
+echo "--- Test: first bench neutral, second bench regresses → overall regress ---"
+multi_bench_regress_config=$(mktemp)
+cat > "$multi_bench_regress_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "bench-neutral",
+      "command": "echo '{\"metric_x\": 100}'",
+      "metrics": [
+        {
+          "name": "metric_x",
+          "extract": "json:.metric_x",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    },
+    {
+      "name": "bench-regress",
+      "command": "echo '{\"metric_y\": 50}'",
+      "metrics": [
+        {
+          "name": "metric_y",
+          "extract": "json:.metric_y",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+multi_bench_regress_baseline=$(mktemp)
+echo '{"metrics":{"metric_x":100,"metric_y":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$multi_bench_regress_baseline"
+result=$("$EVALUATE" "$multi_bench_regress_config" "$multi_bench_regress_baseline" 2>/dev/null)
+assert_json_field "multi-bench-regress: verdict is regress" "$result" '.verdict' 'regress'
+assert_json_field "multi-bench-regress: metric_y in regressed" "$result" '.regressed | contains(["metric_y"])' 'true'
+assert_json_field "multi-bench-regress: metric_x not in regressed (neutral)" "$result" '.regressed | contains(["metric_x"])' 'false'
+assert_json_field "multi-bench-regress: verdict_logic is regression_detected" "$result" '.verdict_logic' 'regression_detected'
+rm -f "$multi_bench_regress_config" "$multi_bench_regress_baseline"
+
+# Test: very large regression (-90%) → still correctly flagged as regress
+echo "--- Test: very large regression (-90%) → regress ---"
+huge_regress_config=$(mktemp)
+cat > "$huge_regress_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "huge-regress-bench",
+      "command": "echo '{\"score\": 10}'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+huge_regress_baseline=$(mktemp)
+echo '{"metrics":{"score":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$huge_regress_baseline"
+result=$("$EVALUATE" "$huge_regress_config" "$huge_regress_baseline" 2>/dev/null)
+assert_json_field "huge-regress: verdict is regress (10% of original)" "$result" '.verdict' 'regress'
+assert_json_field "huge-regress: score in regressed" "$result" '.regressed | contains(["score"])' 'true'
+# delta_pct should be -90.0000
+delta_val=$(echo "$result" | jq '.metrics.score.delta_pct')
+is_neg=$(echo "$delta_val < 0" | bc -l)
+assert_eq "huge-regress: delta_pct is negative" "1" "$is_neg"
+rm -f "$huge_regress_config" "$huge_regress_baseline"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
