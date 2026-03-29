@@ -904,5 +904,190 @@ assert_json_field "multi-bench: regressed is empty" "$result" '.regressed | leng
 rm -f "$multi_bench_config" "$multi_bench_baseline"
 
 echo ""
+echo "=== Edge Case: extract Pattern No-Match, Zero-Tolerance, Compare-Mode Keys, verdict_logic Completeness ==="
+
+# Test: extract pattern yields no match in benchmark output → metric is skipped gracefully
+# The json:.nonexistent key is absent from the output JSON; jq returns null → empty → metric skipped.
+# With a baseline present for that metric, the comparison loop should simply skip it (no crash, no phantom regression).
+echo "--- Test: extract pattern with no match in output → metric silently skipped ---"
+no_match_config=$(mktemp)
+cat > "$no_match_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "no-match-bench",
+      "command": "echo '{\"present\": 50}'",
+      "metrics": [
+        {
+          "name": "present",
+          "extract": "json:.present",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        },
+        {
+          "name": "missing",
+          "extract": "json:.nonexistent",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+# baseline has both metrics; candidate output lacks "nonexistent" key → extract returns null/empty → skip
+no_match_baseline=$(mktemp)
+echo '{"metrics":{"present":40,"missing":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$no_match_baseline"
+result=$("$EVALUATE" "$no_match_config" "$no_match_baseline" 2>/dev/null)
+# "present" improved (40→50, +25%), "missing" skipped gracefully → no crash, not in regressed
+assert_json_field "no-match: verdict is keep (present improved, missing skipped)" "$result" '.verdict' 'keep'
+assert_json_field "no-match: missing NOT in regressed (skipped, not regressed)" "$result" '.regressed | contains(["missing"])' 'false'
+assert_json_field "no-match: missing NOT in improved (skipped)" "$result" '.improved | contains(["missing"])' 'false'
+assert_json_field "no-match: present IS in improved" "$result" '.improved | contains(["present"])' 'true'
+rm -f "$no_match_config" "$no_match_baseline"
+
+# Test: compare mode output has both baseline and candidate keys for each metric
+# The per-metric object must carry {baseline, candidate, delta_pct, direction} in compare mode.
+echo "--- Test: compare mode metrics have baseline and candidate keys per metric ---"
+compare_keys_config=$(mktemp)
+cat > "$compare_keys_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "keys-bench",
+      "command": "echo '{\"alpha\": 110, \"beta\": 90}'",
+      "metrics": [
+        {
+          "name": "alpha",
+          "extract": "json:.alpha",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        },
+        {
+          "name": "beta",
+          "extract": "json:.beta",
+          "direction": "lower_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+compare_keys_baseline=$(mktemp)
+echo '{"metrics":{"alpha":100,"beta":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$compare_keys_baseline"
+result=$("$EVALUATE" "$compare_keys_config" "$compare_keys_baseline" 2>/dev/null)
+# alpha: 100→110 improved; beta: 100→90 improved (lower_is_better)
+assert_json_field "compare-keys: alpha has baseline key" "$result" '.metrics.alpha | has("baseline")' 'true'
+assert_json_field "compare-keys: alpha has candidate key" "$result" '.metrics.alpha | has("candidate")' 'true'
+assert_json_field "compare-keys: alpha baseline value is 100" "$result" '.metrics.alpha.baseline' '100'
+assert_json_field "compare-keys: alpha candidate value is 110" "$result" '.metrics.alpha.candidate' '110'
+assert_json_field "compare-keys: beta has baseline key" "$result" '.metrics.beta | has("baseline")' 'true'
+assert_json_field "compare-keys: beta has candidate key" "$result" '.metrics.beta | has("candidate")' 'true'
+rm -f "$compare_keys_config" "$compare_keys_baseline"
+
+# Test: regression_tolerance=0.0 → any decrease, however tiny, triggers regress immediately
+# With tolerance=0, the condition normalized_delta < -0 is true for any negative delta.
+echo "--- Test: regression_tolerance=0.0 → tiny decrease triggers regress ---"
+zero_tol_config=$(mktemp)
+cat > "$zero_tol_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "zero-tol-bench",
+      "command": "echo '{\"score\": 99}'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.0,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.0,
+  "significance_threshold": 0.01
+}
+EOF
+zero_tol_baseline=$(mktemp)
+# candidate=99 < baseline=100 → delta=-1% → with tolerance=0, -0.01 < -0 is true → regress
+echo '{"metrics":{"score":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$zero_tol_baseline"
+result=$("$EVALUATE" "$zero_tol_config" "$zero_tol_baseline" 2>/dev/null)
+assert_json_field "zero-tol: verdict is regress (any decrease)" "$result" '.verdict' 'regress'
+assert_json_field "zero-tol: score in regressed" "$result" '.regressed | contains(["score"])' 'true'
+assert_json_field "zero-tol: verdict_logic is regression_detected" "$result" '.verdict_logic' 'regression_detected'
+rm -f "$zero_tol_config" "$zero_tol_baseline"
+
+# Test: verdict_logic is present and non-empty on ALL four verdict types
+# (gate_fail → gate_fast_fail, keep → no_regressions_and_at_least_one_improvement,
+#  regress → regression_detected, neutral → no_improvements or no_benchmarks)
+echo "--- Test: verdict_logic is present and non-empty for all verdict types ---"
+# gate_fail
+vl_fail_config=$(mktemp)
+echo '{"gates":[{"name":"fail","command":"false"}],"benchmarks":[],"regression_tolerance":0.02,"significance_threshold":0.01}' > "$vl_fail_config"
+vl_gate=$(echo "$("$EVALUATE" "$vl_fail_config" /dev/null 2>/dev/null)" | jq -r '.verdict_logic // empty')
+if [ -n "$vl_gate" ] && [ "$vl_gate" != "null" ]; then
+  echo "  PASS: gate_fail has verdict_logic=$vl_gate"
+  ((PASS++)) || true
+else
+  echo "  FAIL: gate_fail verdict_logic is empty or null"
+  ((FAIL++)) || true
+fi
+rm -f "$vl_fail_config"
+# keep
+vl_keep_config=$(mktemp)
+sed "s|FIXTURES_DIR|$FIXTURES|g" "$FIXTURES/config-basic.json" > "$vl_keep_config"
+vl_keep=$(echo "$("$EVALUATE" "$vl_keep_config" "$FIXTURES/baseline-basic.json" 2>/dev/null)" | jq -r '.verdict_logic // empty')
+if [ -n "$vl_keep" ] && [ "$vl_keep" != "null" ]; then
+  echo "  PASS: keep has verdict_logic=$vl_keep"
+  ((PASS++)) || true
+else
+  echo "  FAIL: keep verdict_logic is empty or null"
+  ((FAIL++)) || true
+fi
+rm -f "$vl_keep_config"
+# regress
+vl_regress_baseline=$(mktemp)
+echo '{"metrics":{"score":50,"speed_ms":160},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$vl_regress_baseline"
+vl_regress_config=$(mktemp)
+sed "s|FIXTURES_DIR|$FIXTURES|g" "$FIXTURES/config-basic.json" > "$vl_regress_config"
+vl_regress=$(echo "$("$EVALUATE" "$vl_regress_config" "$vl_regress_baseline" 2>/dev/null)" | jq -r '.verdict_logic // empty')
+if [ -n "$vl_regress" ] && [ "$vl_regress" != "null" ]; then
+  echo "  PASS: regress has verdict_logic=$vl_regress"
+  ((PASS++)) || true
+else
+  echo "  FAIL: regress verdict_logic is empty or null"
+  ((FAIL++)) || true
+fi
+rm -f "$vl_regress_config" "$vl_regress_baseline"
+# neutral
+vl_neutral_baseline=$(mktemp)
+echo '{"metrics":{"score":42,"speed_ms":150},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$vl_neutral_baseline"
+vl_neutral_config=$(mktemp)
+sed "s|FIXTURES_DIR|$FIXTURES|g" "$FIXTURES/config-basic.json" > "$vl_neutral_config"
+vl_neutral=$(echo "$("$EVALUATE" "$vl_neutral_config" "$vl_neutral_baseline" 2>/dev/null)" | jq -r '.verdict_logic // empty')
+if [ -n "$vl_neutral" ] && [ "$vl_neutral" != "null" ]; then
+  echo "  PASS: neutral has verdict_logic=$vl_neutral"
+  ((PASS++)) || true
+else
+  echo "  FAIL: neutral verdict_logic is empty or null"
+  ((FAIL++)) || true
+fi
+rm -f "$vl_neutral_config" "$vl_neutral_baseline"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
