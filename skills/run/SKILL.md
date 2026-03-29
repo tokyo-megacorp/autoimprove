@@ -34,6 +34,7 @@ test -f autoimprove.yaml || { echo "FATAL: autoimprove.yaml not found in project
 test -f scripts/evaluate.sh || { echo "FATAL: scripts/evaluate.sh not found"; exit 1; }
 command -v jq >/dev/null || { echo "FATAL: jq is required but not installed"; exit 1; }
 chmod +x scripts/evaluate.sh
+PROJECT_ROOT=$(pwd)   # capture now — used when calling evaluate.sh from inside worktrees
 ```
 
 If any check fails, stop immediately and tell the user what's missing.

@@ -102,8 +102,12 @@ When the experimenter returns:
 
 2. Run evaluation from the worktree:
    ```bash
+   # cd into the worktree so gates/benchmarks run against the candidate code.
+   # $PROJECT_ROOT is the MAIN project dir set during prerequisites (step 1) — NOT the worktree.
+   # Passing a worktree path as the 2nd arg is a common mistake: it's a directory, not a file,
+   # which triggers INIT_MODE and skips baseline comparison entirely.
    cd <worktree_path>
-   bash scripts/evaluate.sh <abs_path>/experiments/evaluate-config.json <abs_path>/experiments/rolling-baseline.json
+   bash scripts/evaluate.sh "$PROJECT_ROOT/experiments/evaluate-config.json" "$PROJECT_ROOT/experiments/rolling-baseline.json"
    ```
 
 3. Parse JSON output:
@@ -150,7 +154,7 @@ Increment the appropriate counter. For `neutral`: increment `theme_stagnation[TH
 
 4. Update rolling baseline — run evaluate.sh init mode on the new main and write the output metrics to `experiments/rolling-baseline.json`:
    ```bash
-   cd <project_root>
+   cd "$PROJECT_ROOT"
    bash scripts/evaluate.sh experiments/evaluate-config.json experiments/rolling-baseline.json
    ```
 
