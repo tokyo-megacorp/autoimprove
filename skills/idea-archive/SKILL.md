@@ -121,3 +121,60 @@ Print:
 Archived to <OUTFILE>
 Winner: <winner> (<verdict_type>, score: <composite_score>/5)
 ```
+
+---
+
+# Usage Examples
+
+## Example 1 — Archive immediately after idea-matrix
+
+```
+user: /idea-matrix "which caching strategy to adopt"
+... idea-matrix produces convergence JSON ...
+user: /idea-archive caching-strategy
+```
+
+The skill reads the convergence JSON from context, derives the slug `caching-strategy`, writes `decisions/2026-03-29-caching-strategy.md`.
+
+## Example 2 — Paste JSON explicitly
+
+```
+user: /idea-archive --json '{"problem":"auth approach","convergence":{"winner":"JWT","verdict_type":"clear","winner_composite":4.2},...}'
+```
+
+Useful when archiving a result from a prior session or a different conversation.
+
+## Example 3 — Archive without a custom slug
+
+```
+user: archive this convergence report
+```
+
+The slug is auto-derived from `REPORT.problem`. If the problem text is "Which database should we use for user sessions?", the slug becomes `which-database-should-we-use-for-user-se` (50-char truncation).
+
+---
+
+# Edge Cases and Pitfalls
+
+- **No convergence JSON in context**: If the user invokes this skill without a prior idea-matrix run and without pasting JSON, stop and ask. Do NOT invent or hallucinate a convergence report.
+- **Slug collisions**: If `decisions/YYYY-MM-DD-<slug>.md` already exists, append `-2`, `-3`, etc. rather than overwriting. Silently incrementing preserves the original archive.
+- **Malformed JSON**: If the pasted JSON is missing required fields (`problem`, `convergence.winner`), print which fields are missing and stop. Do not write a partial file.
+- **No `decisions/` directory**: `mkdir -p decisions` is always safe — it is idempotent and will not fail if the directory already exists.
+- **Long problem statements**: Slugs are capped at 50 chars to keep filenames readable. The full problem statement is preserved inside the file's frontmatter.
+
+---
+
+# Integration Points
+
+- **idea-matrix** → idea-archive: the canonical pipeline. Run idea-matrix first, then archive the winner.
+- **decisions skill**: After archiving, run `/decisions` to list all archived decisions and find this one by date or slug.
+- **adversarial-review**: Major architectural decisions should go through adversarial-review before being idea-archived. The AR verdict can be included in `Top Insights`.
+- **LCM / lcm-capture**: For cross-project memory, also run `lcm_store` with the decision summary after archiving. idea-archive is local-only (files in `decisions/`); LCM persists across repos.
+
+---
+
+# When NOT to Use
+
+- **Do not use** to archive adversarial-review verdicts directly — those have their own output format. Use the report skill for AR summaries.
+- **Do not use** to record informal notes or todo items — this skill is specifically for structured convergence JSON from idea-matrix.
+- **Do not use** as a replacement for `lcm_store` when cross-project memory is needed — file-based archives are repo-scoped only.

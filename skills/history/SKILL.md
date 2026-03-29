@@ -141,3 +141,74 @@ This gives context for how many the filter excluded.
 
 - If `experiments.tsv` has rows with missing columns (malformed), skip them and note the count: `N malformed row(s) skipped.` The log is append-only — do not sort, deduplicate, or modify it.
 - For large logs (>200 rows), warn the user: `Log has <N> rows. Use --last or --since to narrow results.` before printing the table.
+
+---
+
+# Usage Examples
+
+## Example 1 — Review the last 20 experiments (default)
+
+```
+user: /history
+```
+
+Shows the 20 most recent experiments across all themes and verdicts. Good starting point for a morning catch-up after an overnight autoimprove session.
+
+## Example 2 — Find all regressions
+
+```
+user: /history --verdict regress
+```
+
+Lists every experiment that regressed a metric. Useful for auditing what themes or approaches have caused harm so far. Combine with `--theme` to narrow further.
+
+## Example 3 — Investigate a specific theme over time
+
+```
+user: /history --theme coverage_gaps --last 10
+```
+
+Shows the 10 most recent experiments for `coverage_gaps`. Lets you see whether the theme is making progress (alternating kept/neutral) or stuck (all fail/neutral).
+
+## Example 4 — Review experiments since a specific date
+
+```
+user: /history --since 2026-03-25
+```
+
+Useful after returning from a break or for a weekly retro: see everything that ran since Monday.
+
+## Example 5 — Combine multiple filters
+
+```
+user: /history --theme failing_tests --verdict kept --last 5
+```
+
+Shows the 5 most recent kept experiments for `failing_tests`. Use this to understand what kinds of fixes have been successful in a theme before writing a new experiment.
+
+---
+
+# Edge Cases and Pitfalls
+
+- **Filters are applied in order**: `--since` is applied first, then `--theme`, then `--verdict`, then `--last N`. The `--last N` cap applies to the already-filtered subset, not the full log. A query like `--verdict kept --last 5` returns the 5 most recent kept rows, not the last 5 rows that happen to be kept.
+- **Substring match on theme**: `--theme test` will match both `failing_tests` and `prompt-testing`. If you want an exact match, use a more specific string like `--theme failing_tests`.
+- **Malformed rows**: Each row in `experiments.tsv` must have exactly 9 tab-separated columns. Rows with fewer columns are skipped silently (with a count at the end). This can happen if a commit message contained a literal tab character.
+- **Empty log**: If no experiments have run yet, the skill stops immediately with a helpful message. It does not print an empty table.
+- **Large logs without filters**: Logs grow without bound; at >200 rows the skill warns before printing. Always pass `--last` or `--since` for logs in active production use.
+
+---
+
+# Integration Points
+
+- **status skill**: `/status` shows only the single most recent experiment. Use `/history` when you need more context or want to filter by verdict/theme.
+- **report skill**: `/report` shows metric-level drift (which benchmarks improved/regressed). `/history` shows experiment-level records (themes, verdicts, commit messages). Use both together for a complete picture.
+- **run skill**: After reviewing history to understand which themes are stagnating or regressing, use `/run` to kick off the next session with informed expectations.
+- **experiments.tsv format**: The TSV is the canonical append-only log. Never edit it manually. The history skill is the intended read interface; direct TSV inspection is a fallback only.
+
+---
+
+# When NOT to Use
+
+- **Do not use** to see metric-level benchmark scores — use the report skill for that.
+- **Do not use** to modify or clean up the log — the TSV is append-only and must not be edited. If you need to annotate an experiment, use LCM with a reference to the experiment ID.
+- **Do not use** to start or resume a session — that is the run skill's job.

@@ -131,3 +131,58 @@ Append a summary line to `experiments.tsv` (if it exists) with `type: challenge`
 ```
 
 This enables longitudinal tracking of agent accuracy over time.
+
+---
+
+# Usage Examples
+
+## Example 1 — Run the full puzzle suite
+
+```
+user: /challenge
+```
+
+Runs all challenges in `challenges/manifest.json` with the default `puzzles` suite filter, reports per-challenge F1 and an overall pass/fail summary.
+
+## Example 2 — Benchmark a single language
+
+```
+user: /challenge --language python
+```
+
+Filters to only Python challenges. Useful when iterating on prompts that target Python-specific bug patterns and you want fast feedback without running Go/Rust/TypeScript suites.
+
+## Example 3 — Run the full suite including non-puzzle challenges
+
+```
+user: /challenge --suite all --language all
+```
+
+Runs every challenge regardless of suite tag. Expect a longer wall time. Use this before a major version bump or trust-tier promotion to get a complete accuracy baseline.
+
+---
+
+# Edge Cases and Pitfalls
+
+- **Missing `challenges/manifest.json`**: The skill cannot run without it. If the file is absent, print a clear error and stop. Do not attempt to reconstruct the manifest from the directory structure.
+- **Empty filter result**: If `--language python` produces zero challenges (e.g., no Python challenges exist yet), print `No challenges match language=python.` and stop rather than silently reporting 0/0 results.
+- **Judge output format drift**: If the debate skill changes its JSON output schema, score-challenge.sh may fail to parse rulings. When `jq` exits non-zero, print the raw error and the path to the temp file for manual inspection before deleting it.
+- **Parallel collision risk**: Each challenge uses `mktemp` to produce unique temp file paths. Do NOT reuse a hardcoded `/tmp/debate-output.json` across challenges — parallel runs will corrupt each other's inputs.
+- **F1 = 0 on all challenges**: Usually means the debate pipeline returned no structured findings (all text, no JSON). Check that the review skill is running in structured-output mode, not prose mode.
+
+---
+
+# Integration Points
+
+- **adversarial-review skill**: The challenge skill calls the review pipeline (Enthusiast → Adversary → Judge) under the hood. Changes to adversarial-review prompts directly affect challenge scores.
+- **prompt-testing skill**: Use prompt-testing for iterating on a single agent's behavior in isolation. Use challenge for end-to-end F1 measurement across the full debate pipeline.
+- **experiments.tsv log**: Challenge appends to the same log as autoimprove experiments. Filter with `/history --theme challenge` to see only benchmark runs.
+- **score-challenge.sh**: Located at `scripts/score-challenge.sh`. Scores by matching (file, line, type) tuples from Judge verdicts against the answer key. Understanding the matching logic is essential for diagnosing low-recall scores.
+
+---
+
+# When NOT to Use
+
+- **Do not use** to write or modify test suites — this skill only runs existing challenges against agents. Use prompt-testing for that.
+- **Do not use** as a substitute for CI — challenge is an interactive diagnostic tool, not a regression gate. Wire CI to the test script directly.
+- **Do not use** when the debate pipeline is in mid-refactor — a structural change to agent output format will produce meaningless F1 scores until score-challenge.sh is updated to match.

@@ -133,3 +133,58 @@ Proposals                             ← only if pending proposals exist
 - Active worktrees after a session ends may be crash orphans. Run `/autoimprove run` — it performs crash recovery automatically (step 2f).
 - If epoch and rolling baselines diverge significantly, run `/autoimprove report` for metric-level drift detail.
 - Trust tier drops one tier on any regression (`regression_penalty` in config). If `consecutive_keeps` is unexpectedly low, check the log for recent regressions.
+
+---
+
+# Usage Examples
+
+## Example 1 — Quick health check before starting a session
+
+```
+user: autoimprove status
+```
+
+Shows trust tier, how many keeps until the next tier, any stagnated themes, and whether there are orphan worktrees. Good first command each morning before running `/autoimprove run`.
+
+## Example 2 — Verbose theme table
+
+```
+user: /autoimprove status --verbose
+```
+
+Prints the full cooldown table with remaining-count per theme and all non-zero stagnation counters. Use this when a theme seems under-represented and you want to see exactly when its cooldown expires.
+
+## Example 3 — Check for pending proposals before approving
+
+```
+user: what trust tier is autoimprove on?
+```
+
+Returns the trust tier and progress toward the next tier. If the output shows `Proposals: 3 pending`, follow up with `/autoimprove proposals` before running another session.
+
+---
+
+# Edge Cases and Pitfalls
+
+- **`state.json` missing but `experiments.tsv` present**: This can happen after a manual state reset or a failed init. The skill stops at step 2 and tells you to run `/autoimprove run`. The TSV is preserved — no data is lost.
+- **Orphan worktrees showing as "active"**: `git worktree list` includes any worktree that was never cleaned up after a crash. They appear active even if no experiment is running. `/autoimprove run` detects and removes them; the status skill only reports them.
+- **Baseline timestamps far in the past**: The rolling baseline is updated after each kept experiment. If it shows "3 days ago", the session may have been idle or every recent experiment regressed/failed.
+- **Trust tier unexpectedly low**: A single regression resets `consecutive_keeps` to 0 and drops the tier by one. Check the last few entries in the experiment log with `/history --last 5` to identify the culprit.
+- **Theme cooldown counts seem wrong**: Cooldowns are decremented per session run, not per experiment. Running multiple experiments in one session decrements the counter once.
+
+---
+
+# Integration Points
+
+- **run skill**: Status shows the current state; run starts the next session. Always check status before run to avoid starting a session with stagnated themes or orphan worktrees.
+- **report skill**: Status gives a session-level snapshot. For metric-level drift (which benchmarks improved or regressed), use `/autoimprove report`.
+- **history skill**: Status shows only the most recent experiment. For a filterable log, use `/history`.
+- **proposals skill**: When status shows pending proposals, `/autoimprove proposals` is the next step — it lists and lets you approve or reject each one.
+
+---
+
+# When NOT to Use
+
+- **Do not use** to review past experiment metrics in depth — use the report skill for that.
+- **Do not use** to start or resume a session — use the run skill.
+- **Do not use** as a substitute for `git worktree list` when debugging a specific worktree's branch or commit — status only surfaces the path and HEAD SHA.
