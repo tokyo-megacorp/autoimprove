@@ -287,6 +287,156 @@ else
   ((FAIL++)) || true
 fi
 
+# Test: regression exactly at tolerance boundary — should be neutral (not regress)
+# score tolerance=0.02; baseline=100, candidate=98 → delta=-0.02 (not < -0.02)
+echo "--- Test: tolerance boundary — exact regression_tolerance is NOT a regress ---"
+tol_boundary_baseline=$(mktemp)
+echo '{"metrics":{"score":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$tol_boundary_baseline"
+tol_boundary_config=$(mktemp)
+cat > "$tol_boundary_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "tol-bench",
+      "command": "echo '{\"score\": 98}'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$tol_boundary_config" "$tol_boundary_baseline" 2>/dev/null)
+assert_json_field "exact tolerance boundary verdict is NOT regress" "$result" '.verdict' 'neutral'
+assert_json_field "score not in regressed list" "$result" '.regressed | length' '0'
+rm -f "$tol_boundary_config" "$tol_boundary_baseline"
+
+# Test: improvement exactly at significance threshold — should be neutral (not keep)
+# score significance=0.01; baseline=100, candidate=101 → delta=0.01 (not > 0.01)
+echo "--- Test: significance boundary — exact significance_threshold is NOT an improvement ---"
+sig_boundary_baseline=$(mktemp)
+echo '{"metrics":{"score":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$sig_boundary_baseline"
+sig_boundary_config=$(mktemp)
+cat > "$sig_boundary_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "sig-bench",
+      "command": "echo '{\"score\": 101}'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$sig_boundary_config" "$sig_boundary_baseline" 2>/dev/null)
+assert_json_field "exact significance boundary verdict is neutral" "$result" '.verdict' 'neutral'
+assert_json_field "score not in improved list" "$result" '.improved | length' '0'
+rm -f "$sig_boundary_config" "$sig_boundary_baseline"
+
+# Test: multiple metrics — one improved, one neutral (at significance boundary) → keep verdict
+# metric_a: baseline=100, candidate=115 (+15%, clearly improved)
+# metric_b: baseline=100, candidate=101 (exactly at significance=0.01, not improved)
+# No regressions + at least one improvement → keep
+echo "--- Test: multiple metrics — one improved, one neutral → keep verdict ---"
+multi_neutral_baseline=$(mktemp)
+echo '{"metrics":{"metric_a":100,"metric_b":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$multi_neutral_baseline"
+multi_neutral_config=$(mktemp)
+cat > "$multi_neutral_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "multi-bench",
+      "command": "echo '{\"metric_a\": 115, \"metric_b\": 101}'",
+      "metrics": [
+        {
+          "name": "metric_a",
+          "extract": "json:.metric_a",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        },
+        {
+          "name": "metric_b",
+          "extract": "json:.metric_b",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$multi_neutral_config" "$multi_neutral_baseline" 2>/dev/null)
+assert_json_field "one-improved-one-neutral verdict is keep" "$result" '.verdict' 'keep'
+assert_json_field "metric_a appears in improved" "$result" '.improved | contains(["metric_a"])' 'true'
+assert_json_field "metric_b not in improved" "$result" '.improved | contains(["metric_b"])' 'false'
+assert_json_field "no regressions in multi-neutral test" "$result" '.regressed | length' '0'
+rm -f "$multi_neutral_config" "$multi_neutral_baseline"
+
+# Test: metric extraction failure (malformed JSON) — jq fails inside evaluate.sh causing non-zero exit
+# When benchmark output is not valid JSON and extract pattern is json:, jq fails → evaluate.sh exits non-zero.
+# This is a known behavior: malformed bench output causes evaluate.sh to exit with error.
+echo "--- Test: malformed JSON output — evaluate exits non-zero on jq parse failure ---"
+malformed_config=$(mktemp)
+cat > "$malformed_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "bad-bench",
+      "command": "echo 'this is not json'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+set +e
+"$EVALUATE" "$malformed_config" /dev/null >/dev/null 2>/dev/null
+malformed_exit=$?
+set -e
+if [ "$malformed_exit" -ne 0 ]; then
+  echo "  PASS: malformed JSON causes non-zero exit (got $malformed_exit)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: malformed JSON should cause non-zero exit (got 0)"
+  ((FAIL++)) || true
+fi
+rm -f "$malformed_config"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
