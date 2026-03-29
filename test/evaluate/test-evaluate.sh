@@ -471,5 +471,124 @@ assert_json_field "tol boundary: val not in regressed" "$result" '.regressed | l
 rm -f "$tol_boundary_config" "$tol_boundary_baseline"
 
 echo ""
+echo "=== Array Exactness & reason Field Tests ==="
+
+# Test: improved array has exactly the right entries (length + membership, not just contains)
+echo "--- Test: improved array contains exactly the right entries ---"
+bench_config=$(mktemp)
+sed "s|FIXTURES_DIR|$FIXTURES|g" "$FIXTURES/config-basic.json" > "$bench_config"
+# baseline: score=40, speed_ms=160 → candidate: score=42, speed_ms=150 → both improve
+result=$("$EVALUATE" "$bench_config" "$FIXTURES/baseline-basic.json" 2>/dev/null)
+improved_len=$(echo "$result" | jq '.improved | length')
+assert_eq "improved has exactly 2 entries" "2" "$improved_len"
+assert_json_field "improved[0] is score" "$result" '.improved[0]' 'score'
+assert_json_field "improved[1] is speed_ms" "$result" '.improved[1]' 'speed_ms'
+rm -f "$bench_config"
+
+# Test: regressed array is populated with exactly the right entry on regress verdict
+echo "--- Test: regressed array contains exactly the right entry ---"
+regress_baseline=$(mktemp)
+echo '{"metrics":{"score":50,"speed_ms":150},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$regress_baseline"
+bench_config=$(mktemp)
+sed "s|FIXTURES_DIR|$FIXTURES|g" "$FIXTURES/config-basic.json" > "$bench_config"
+# score 50→42 = -16%, well below -2% tolerance → regressed; speed_ms baseline=150, candidate=150 → no change
+result=$("$EVALUATE" "$bench_config" "$regress_baseline" 2>/dev/null)
+regressed_len=$(echo "$result" | jq '.regressed | length')
+assert_eq "regressed has exactly 1 entry" "1" "$regressed_len"
+assert_json_field "regressed[0] is score" "$result" '.regressed[0]' 'score'
+assert_json_field "regressed: improved is empty" "$result" '.improved | length' '0'
+rm -f "$bench_config" "$regress_baseline"
+
+# Test: delta_pct sign is negative for lower_is_better improvement (value decreased)
+echo "--- Test: delta_pct is negative when lower_is_better value decreases ---"
+lib_delta_config=$(mktemp)
+cat > "$lib_delta_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "latency-bench",
+      "command": "echo '{\"ms\": 80}'",
+      "metrics": [
+        {
+          "name": "ms",
+          "extract": "json:.ms",
+          "direction": "lower_is_better",
+          "tolerance": 0.05,
+          "significance": 0.02
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.05,
+  "significance_threshold": 0.02
+}
+EOF
+lib_delta_baseline=$(mktemp)
+echo '{"metrics":{"ms":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$lib_delta_baseline"
+# ms 100→80 = -20% raw delta → displayed as negative delta_pct
+result=$("$EVALUATE" "$lib_delta_config" "$lib_delta_baseline" 2>/dev/null)
+delta=$(echo "$result" | jq '.metrics.ms.delta_pct')
+is_negative=$(echo "$delta < 0" | bc -l)
+assert_eq "delta_pct is negative for lower_is_better improvement" "1" "$is_negative"
+assert_json_field "verdict is keep (it was an improvement)" "$result" '.verdict' 'keep'
+rm -f "$lib_delta_config" "$lib_delta_baseline"
+
+# Test: reason field is a non-empty string on all verdict types
+echo "--- Test: reason field is non-empty string on all verdict types ---"
+# gate_fail reason
+fail_config=$(mktemp)
+echo '{"gates":[{"name":"fail","command":"false"}],"benchmarks":[],"regression_tolerance":0.02,"significance_threshold":0.01}' > "$fail_config"
+reason_gate_fail=$(echo "$("$EVALUATE" "$fail_config" /dev/null 2>/dev/null)" | jq -r '.reason')
+if [ -n "$reason_gate_fail" ] && [ "$reason_gate_fail" != "null" ]; then
+  echo "  PASS: gate_fail has non-empty reason (got: $reason_gate_fail)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: gate_fail reason is empty or null"
+  ((FAIL++)) || true
+fi
+rm -f "$fail_config"
+# keep reason
+bench_config=$(mktemp)
+sed "s|FIXTURES_DIR|$FIXTURES|g" "$FIXTURES/config-basic.json" > "$bench_config"
+reason_keep=$(echo "$("$EVALUATE" "$bench_config" "$FIXTURES/baseline-basic.json" 2>/dev/null)" | jq -r '.reason')
+if [ -n "$reason_keep" ] && [ "$reason_keep" != "null" ]; then
+  echo "  PASS: keep has non-empty reason (got: $reason_keep)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: keep reason is empty or null"
+  ((FAIL++)) || true
+fi
+rm -f "$bench_config"
+# neutral reason
+neutral_baseline=$(mktemp)
+echo '{"metrics":{"score":42,"speed_ms":150},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$neutral_baseline"
+bench_config=$(mktemp)
+sed "s|FIXTURES_DIR|$FIXTURES|g" "$FIXTURES/config-basic.json" > "$bench_config"
+reason_neutral=$(echo "$("$EVALUATE" "$bench_config" "$neutral_baseline" 2>/dev/null)" | jq -r '.reason')
+if [ -n "$reason_neutral" ] && [ "$reason_neutral" != "null" ]; then
+  echo "  PASS: neutral has non-empty reason (got: $reason_neutral)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: neutral reason is empty or null"
+  ((FAIL++)) || true
+fi
+rm -f "$bench_config" "$neutral_baseline"
+# regress reason
+regress_baseline=$(mktemp)
+echo '{"metrics":{"score":50,"speed_ms":160},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$regress_baseline"
+bench_config=$(mktemp)
+sed "s|FIXTURES_DIR|$FIXTURES|g" "$FIXTURES/config-basic.json" > "$bench_config"
+reason_regress=$(echo "$("$EVALUATE" "$bench_config" "$regress_baseline" 2>/dev/null)" | jq -r '.reason')
+if [ -n "$reason_regress" ] && [ "$reason_regress" != "null" ]; then
+  echo "  PASS: regress has non-empty reason (got: $reason_regress)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: regress reason is empty or null"
+  ((FAIL++)) || true
+fi
+rm -f "$bench_config" "$regress_baseline"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
