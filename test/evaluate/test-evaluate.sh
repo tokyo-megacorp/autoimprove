@@ -1693,5 +1693,436 @@ assert_json_field "noisy-gate: mode is init (no baseline)" "$raw_output" '.mode'
 rm -f "$noisy_gate_config"
 
 echo ""
+echo "=== Error Handling Tests ==="
+
+# Test: no arguments → exits with code 1 (error emitted to stderr, not stdout)
+echo "--- Test: no arguments → exit code 1 ---"
+set +e
+"$EVALUATE" 2>/dev/null
+no_arg_exit=$?
+set -e
+if [ "$no_arg_exit" -eq 1 ]; then
+  echo "  PASS: no-args exits with code 1 (got $no_arg_exit)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: no-args should exit 1 (got $no_arg_exit)"
+  ((FAIL++)) || true
+fi
+
+# Test: no arguments → error message goes to stderr (stdout is empty)
+echo "--- Test: no arguments → error message on stderr, stdout empty ---"
+set +e
+stdout_output=$("$EVALUATE" 2>/dev/null)
+set -e
+if [ -z "$stdout_output" ]; then
+  echo "  PASS: no-args stdout is empty (error correctly on stderr)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: no-args stdout should be empty (got: $stdout_output)"
+  ((FAIL++)) || true
+fi
+
+# Test: nonexistent config file → exits with code 1
+echo "--- Test: nonexistent config file → exit code 1 ---"
+set +e
+"$EVALUATE" /tmp/definitely-nonexistent-evaluate-config-xyz.json 2>/dev/null
+nonexistent_exit=$?
+set -e
+if [ "$nonexistent_exit" -eq 1 ]; then
+  echo "  PASS: nonexistent config exits with code 1 (got $nonexistent_exit)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: nonexistent config should exit 1 (got $nonexistent_exit)"
+  ((FAIL++)) || true
+fi
+
+# Test: nonexistent config file → error message on stderr, stdout empty
+echo "--- Test: nonexistent config file → stderr only, stdout empty ---"
+set +e
+stdout_nonexistent=$("$EVALUATE" /tmp/definitely-nonexistent-evaluate-config-xyz.json 2>/dev/null)
+set -e
+if [ -z "$stdout_nonexistent" ]; then
+  echo "  PASS: nonexistent config stdout is empty"
+  ((PASS++)) || true
+else
+  echo "  FAIL: nonexistent config stdout should be empty (got: $stdout_nonexistent)"
+  ((FAIL++)) || true
+fi
+
+echo ""
+echo "=== Init Mode Structure Tests ==="
+
+# Test: init mode output includes a gates array (not just metrics)
+echo "--- Test: init mode output includes gates array ---"
+init_gates_config=$(mktemp)
+cat > "$init_gates_config" <<EOF
+{
+  "gates": [{"name": "init-gate", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "g-bench",
+      "command": "echo '{\"val\": 7}'",
+      "metrics": [{"name": "val", "extract": "json:.val", "direction": "higher_is_better", "tolerance": 0.02, "significance": 0.01}]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$init_gates_config" /dev/null 2>/dev/null)
+assert_json_field "init-gates: mode is init" "$result" '.mode' 'init'
+assert_json_field "init-gates: gates array present" "$result" '.gates | length' '1'
+assert_json_field "init-gates: gate name is init-gate" "$result" '.gates[0].name' 'init-gate'
+assert_json_field "init-gates: gate passed=true" "$result" '.gates[0].passed' 'true'
+rm -f "$init_gates_config"
+
+# Test: nonexistent baseline path → treated as init mode (INIT_MODE=true when file not found)
+echo "--- Test: nonexistent baseline path → init mode ---"
+no_baseline_file_config=$(mktemp)
+cat > "$no_baseline_file_config" <<EOF
+{
+  "gates": [],
+  "benchmarks": [
+    {
+      "name": "no-bl-bench",
+      "command": "echo '{\"count\": 10}'",
+      "metrics": [{"name": "count", "extract": "json:.count", "direction": "higher_is_better", "tolerance": 0.02, "significance": 0.01}]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$no_baseline_file_config" /tmp/nonexistent-baseline-for-evaluate-test.json 2>/dev/null)
+assert_json_field "no-baseline-file: mode is init (nonexistent file treated as init)" "$result" '.mode' 'init'
+assert_json_field "no-baseline-file: count metric present in init output" "$result" '.metrics.count' '10'
+rm -f "$no_baseline_file_config"
+
+# Test: init mode with no benchmarks → metrics is empty object
+echo "--- Test: init mode with no benchmarks → empty metrics object ---"
+no_bench_init_config=$(mktemp)
+echo '{"gates":[],"benchmarks":[],"regression_tolerance":0.02,"significance_threshold":0.01}' > "$no_bench_init_config"
+result=$("$EVALUATE" "$no_bench_init_config" /dev/null 2>/dev/null)
+assert_json_field "no-bench-init: mode is init" "$result" '.mode' 'init'
+assert_json_field "no-bench-init: metrics is empty object" "$result" '.metrics | length' '0'
+assert_json_field "no-bench-init: gates is empty array" "$result" '.gates | length' '0'
+rm -f "$no_bench_init_config"
+
+echo ""
+echo "=== Metric Type Handling Tests ==="
+
+# Test: string metric value stored as string type in init mode
+# When benchmark output contains a non-numeric value, run_benchmarks stores it as a JSON string.
+echo "--- Test: non-numeric metric stored as string type in init mode ---"
+str_metric_config=$(mktemp)
+cat > "$str_metric_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "str-metric-bench",
+      "command": "echo '{\"version\": \"v2.1.0\"}'",
+      "metrics": [
+        {
+          "name": "version",
+          "extract": "json:.version",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$str_metric_config" /dev/null 2>/dev/null)
+assert_json_field "str-metric: mode is init" "$result" '.mode' 'init'
+assert_json_field "str-metric: version value is v2.1.0" "$result" '.metrics.version' 'v2.1.0'
+assert_json_field "str-metric: version stored as string type" "$result" '.metrics.version | type' 'string'
+rm -f "$str_metric_config"
+
+# Test: floating-point metric value stored as number type in init mode
+echo "--- Test: fractional metric stored as number type in init mode ---"
+float_metric_config=$(mktemp)
+cat > "$float_metric_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "float-metric-bench",
+      "command": "echo '{\"accuracy\": 0.9375}'",
+      "metrics": [
+        {
+          "name": "accuracy",
+          "extract": "json:.accuracy",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$float_metric_config" /dev/null 2>/dev/null)
+assert_json_field "float-metric: mode is init" "$result" '.mode' 'init'
+assert_json_field "float-metric: accuracy stored as number type" "$result" '.metrics.accuracy | type' 'number'
+accuracy_val=$(echo "$result" | jq -r '.metrics.accuracy')
+if [ "$(echo "$accuracy_val == 0.9375" | bc -l)" = "1" ]; then
+  echo "  PASS: float-metric: accuracy value is 0.9375 (got $accuracy_val)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: float-metric: accuracy value should be 0.9375 (got $accuracy_val)"
+  ((FAIL++)) || true
+fi
+rm -f "$float_metric_config"
+
+# Test: fractional metric scores correctly in compare mode
+# accuracy: baseline=0.90, candidate=0.95 → delta=(0.95-0.90)/0.90 ≈ +5.56% > significance=0.01 → keep
+echo "--- Test: fractional metric (0.90→0.95) scores as improvement in compare mode ---"
+float_compare_config=$(mktemp)
+cat > "$float_compare_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "float-compare-bench",
+      "command": "echo '{\"accuracy\": 0.95}'",
+      "metrics": [
+        {
+          "name": "accuracy",
+          "extract": "json:.accuracy",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+float_compare_baseline=$(mktemp)
+echo '{"metrics":{"accuracy":0.90},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$float_compare_baseline"
+result=$("$EVALUATE" "$float_compare_config" "$float_compare_baseline" 2>/dev/null)
+assert_json_field "float-compare: verdict is keep" "$result" '.verdict' 'keep'
+assert_json_field "float-compare: accuracy in improved" "$result" '.improved | contains(["accuracy"])' 'true'
+assert_json_field "float-compare: baseline stored correctly" "$result" '.metrics.accuracy.baseline' '0.90'
+assert_json_field "float-compare: candidate stored correctly" "$result" '.metrics.accuracy.candidate' '0.95'
+rm -f "$float_compare_config" "$float_compare_baseline"
+
+echo ""
+echo "=== lower_is_better Zero Baseline Tests ==="
+
+# Test: lower_is_better, baseline=0, candidate>0 → delta=1, normalized=-1 → regress
+# For lower_is_better: an increase from 0 is a regression (things got slower/larger).
+# evaluate.sh sets delta_pct=1 when baseline=0 and candidate!=0, then negates for lower_is_better:
+# normalized_delta = -1 → -1 < -tolerance → regression.
+echo "--- Test: lower_is_better, baseline=0, candidate>0 → regress ---"
+lib_zero_cand_nonzero_config=$(mktemp)
+cat > "$lib_zero_cand_nonzero_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "lib-zero-nonzero-bench",
+      "command": "echo '{\"latency\": 10}'",
+      "metrics": [
+        {
+          "name": "latency",
+          "extract": "json:.latency",
+          "direction": "lower_is_better",
+          "tolerance": 0.05,
+          "significance": 0.02
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.05,
+  "significance_threshold": 0.02
+}
+EOF
+lib_zero_cand_nonzero_baseline=$(mktemp)
+echo '{"metrics":{"latency":0},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$lib_zero_cand_nonzero_baseline"
+result=$("$EVALUATE" "$lib_zero_cand_nonzero_config" "$lib_zero_cand_nonzero_baseline" 2>/dev/null)
+assert_json_field "lib-zero-nonzero: verdict is regress (baseline=0, candidate>0 is worse for lower_is_better)" "$result" '.verdict' 'regress'
+assert_json_field "lib-zero-nonzero: latency in regressed" "$result" '.regressed | contains(["latency"])' 'true'
+assert_json_field "lib-zero-nonzero: improved is empty" "$result" '.improved | length' '0'
+rm -f "$lib_zero_cand_nonzero_config" "$lib_zero_cand_nonzero_baseline"
+
+# Test: lower_is_better, baseline=0, candidate=0 → normalized_delta=0 → neutral
+echo "--- Test: lower_is_better, baseline=0, candidate=0 → neutral ---"
+lib_zero_zero_config=$(mktemp)
+cat > "$lib_zero_zero_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "lib-zero-zero-bench",
+      "command": "echo '{\"latency\": 0}'",
+      "metrics": [
+        {
+          "name": "latency",
+          "extract": "json:.latency",
+          "direction": "lower_is_better",
+          "tolerance": 0.05,
+          "significance": 0.02
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.05,
+  "significance_threshold": 0.02
+}
+EOF
+lib_zero_zero_baseline=$(mktemp)
+echo '{"metrics":{"latency":0},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$lib_zero_zero_baseline"
+result=$("$EVALUATE" "$lib_zero_zero_config" "$lib_zero_zero_baseline" 2>/dev/null)
+assert_json_field "lib-zero-zero: verdict is neutral" "$result" '.verdict' 'neutral'
+assert_json_field "lib-zero-zero: improved is empty" "$result" '.improved | length' '0'
+assert_json_field "lib-zero-zero: regressed is empty" "$result" '.regressed | length' '0'
+rm -f "$lib_zero_zero_config" "$lib_zero_zero_baseline"
+
+# Test: lower_is_better, tolerance=0.0, candidate slightly above baseline → regress immediately
+echo "--- Test: lower_is_better, tolerance=0.0, any increase → regress ---"
+lib_zero_tol_config=$(mktemp)
+cat > "$lib_zero_tol_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "lib-zero-tol-bench",
+      "command": "echo '{\"ms\": 101}'",
+      "metrics": [
+        {
+          "name": "ms",
+          "extract": "json:.ms",
+          "direction": "lower_is_better",
+          "tolerance": 0.0,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.0,
+  "significance_threshold": 0.01
+}
+EOF
+lib_zero_tol_baseline=$(mktemp)
+# baseline=100, candidate=101 → delta=+1%, normalized=-1% → -0.01 < -0 → regress
+echo '{"metrics":{"ms":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$lib_zero_tol_baseline"
+result=$("$EVALUATE" "$lib_zero_tol_config" "$lib_zero_tol_baseline" 2>/dev/null)
+assert_json_field "lib-zero-tol: verdict is regress (any increase in lower_is_better with tol=0)" "$result" '.verdict' 'regress'
+assert_json_field "lib-zero-tol: ms in regressed" "$result" '.regressed | contains(["ms"])' 'true'
+assert_json_field "lib-zero-tol: verdict_logic is regression_detected" "$result" '.verdict_logic' 'regression_detected'
+rm -f "$lib_zero_tol_config" "$lib_zero_tol_baseline"
+
+# Test: lower_is_better, tolerance boundary — candidate exactly at +tolerance → neutral (not regress)
+# ms: baseline=100, candidate=105 → delta=5%, normalized=-5%; tolerance=0.05 → -0.05 < -0.05 is false → neutral
+echo "--- Test: lower_is_better, exact +tolerance → not a regress (boundary is exclusive) ---"
+lib_tol_boundary_config=$(mktemp)
+cat > "$lib_tol_boundary_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "lib-tol-boundary-bench",
+      "command": "echo '{\"ms\": 105}'",
+      "metrics": [
+        {
+          "name": "ms",
+          "extract": "json:.ms",
+          "direction": "lower_is_better",
+          "tolerance": 0.05,
+          "significance": 0.02
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.05,
+  "significance_threshold": 0.02
+}
+EOF
+lib_tol_boundary_baseline=$(mktemp)
+echo '{"metrics":{"ms":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$lib_tol_boundary_baseline"
+result=$("$EVALUATE" "$lib_tol_boundary_config" "$lib_tol_boundary_baseline" 2>/dev/null)
+assert_json_field "lib-tol-boundary: verdict is neutral (exact boundary not regress)" "$result" '.verdict' 'neutral'
+assert_json_field "lib-tol-boundary: ms not in regressed" "$result" '.regressed | length' '0'
+assert_json_field "lib-tol-boundary: ms not in improved" "$result" '.improved | length' '0'
+rm -f "$lib_tol_boundary_config" "$lib_tol_boundary_baseline"
+
+echo ""
+echo "=== Benchmark Command Empty Output Tests ==="
+
+# Test: benchmark command produces empty output → metric not extracted → skipped gracefully → neutral
+echo "--- Test: benchmark command empty output → metric skipped → neutral in compare mode ---"
+empty_output_config=$(mktemp)
+cat > "$empty_output_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "empty-output-bench",
+      "command": "true",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+empty_output_baseline=$(mktemp)
+echo '{"metrics":{"score":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$empty_output_baseline"
+result=$("$EVALUATE" "$empty_output_config" "$empty_output_baseline" 2>/dev/null)
+assert_json_field "empty-output: verdict is neutral (empty output → metric skipped)" "$result" '.verdict' 'neutral'
+assert_json_field "empty-output: improved is empty (no candidate extracted)" "$result" '.improved | length' '0'
+assert_json_field "empty-output: regressed is empty (skipped, not regressed)" "$result" '.regressed | length' '0'
+assert_json_field "empty-output: metrics object is empty (nothing extracted)" "$result" '.metrics | length' '0'
+rm -f "$empty_output_config" "$empty_output_baseline"
+
+# Test: benchmark command empty output in init mode → metrics is empty object
+echo "--- Test: benchmark command empty output in init mode → empty metrics object ---"
+empty_init_config=$(mktemp)
+cat > "$empty_init_config" <<EOF
+{
+  "gates": [],
+  "benchmarks": [
+    {
+      "name": "empty-init-bench",
+      "command": "true",
+      "metrics": [
+        {
+          "name": "count",
+          "extract": "json:.count",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$empty_init_config" /dev/null 2>/dev/null)
+assert_json_field "empty-init: mode is init" "$result" '.mode' 'init'
+assert_json_field "empty-init: metrics is empty (command had no output)" "$result" '.metrics | length' '0'
+rm -f "$empty_init_config"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
