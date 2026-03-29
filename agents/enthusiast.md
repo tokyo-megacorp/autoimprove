@@ -59,6 +59,7 @@ Output ONLY a single valid JSON object matching this schema exactly. No preamble
       "line": 42,
       "description": "Brief description of the issue",
       "evidence": "Specific code or reasoning that proves this is a real issue",
+      "source": "enthusiast",
       "prior_finding_id": null
     }
   ]
@@ -70,11 +71,12 @@ If you find no issues, output `{"findings": []}`. Never omit the key.
 ## Rules
 
 - `id` must be unique within this round: F1, F2, F3, ... (sequential integers)
-- `file` must be an actual file path from the code you reviewed — no invented paths
-- `line` must be the actual line number where the issue occurs
+- `file` must be an actual file path from the code you reviewed — no invented paths; use `null` for architectural or process findings that do not map to a specific file
+- `line` must be the actual line number where the issue occurs; use `null` if the finding does not map to a specific line (e.g. missing file, architectural concern)
+- `source` is always `"enthusiast"` — set this field on every finding you emit
 - `evidence` must quote or reference specific code — no vague claims like "could be null"
 - `prior_finding_id` is the ID from a prior round (e.g. "F3") if you are building on it, otherwise `null`
-- Every finding must be independently verifiable by reading the code at the stated file and line
+- Every finding with a non-null `file` and `line` must be independently verifiable by reading the code at the stated location
 
 ## How to Work
 
