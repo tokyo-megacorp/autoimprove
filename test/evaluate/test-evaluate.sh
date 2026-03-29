@@ -2392,5 +2392,157 @@ assert_eq "huge-regress: delta_pct is negative" "1" "$is_neg"
 rm -f "$huge_regress_config" "$huge_regress_baseline"
 
 echo ""
+echo "=== Global Tolerance/Significance Fallback Tests ==="
+
+# Test: per-metric tolerance omitted → falls back to global regression_tolerance
+# score: baseline=100, candidate=97 → delta=-3%, global regression_tolerance=0.02 → -0.03 < -0.02 → regress
+echo "--- Test: per-metric tolerance absent → falls back to global regression_tolerance ---"
+global_tol_config=$(mktemp)
+cat > "$global_tol_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "global-tol-bench",
+      "command": "echo '{\"score\": 97}'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+global_tol_baseline=$(mktemp)
+echo '{"metrics":{"score":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$global_tol_baseline"
+result=$("$EVALUATE" "$global_tol_config" "$global_tol_baseline" 2>/dev/null)
+assert_json_field "global-tol: verdict is regress (global tolerance used)" "$result" '.verdict' 'regress'
+assert_json_field "global-tol: score in regressed" "$result" '.regressed | contains(["score"])' 'true'
+assert_json_field "global-tol: verdict_logic is regression_detected" "$result" '.verdict_logic' 'regression_detected'
+rm -f "$global_tol_config" "$global_tol_baseline"
+
+# Test: per-metric significance omitted → falls back to global significance_threshold
+# score: baseline=100, candidate=102 → delta=2%, global significance_threshold=0.03 → 0.02 > 0.03 is FALSE → neutral
+echo "--- Test: per-metric significance absent → falls back to global significance_threshold ---"
+global_sig_config=$(mktemp)
+cat > "$global_sig_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "global-sig-bench",
+      "command": "echo '{\"score\": 102}'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.10
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.10,
+  "significance_threshold": 0.03
+}
+EOF
+global_sig_baseline=$(mktemp)
+echo '{"metrics":{"score":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$global_sig_baseline"
+result=$("$EVALUATE" "$global_sig_config" "$global_sig_baseline" 2>/dev/null)
+# delta=+2% but global significance_threshold=3% → 0.02 > 0.03 is false → neutral
+assert_json_field "global-sig: verdict is neutral (global significance used, 2% < 3% threshold)" "$result" '.verdict' 'neutral'
+assert_json_field "global-sig: score not in improved (below global threshold)" "$result" '.improved | length' '0'
+assert_json_field "global-sig: score not in regressed (within tolerance)" "$result" '.regressed | length' '0'
+rm -f "$global_sig_config" "$global_sig_baseline"
+
+# Test: both tolerance and significance omitted → both fall back to global values → keep verdict
+# score: baseline=100, candidate=110 → delta=+10%, global significance_threshold=0.05 → 0.10 > 0.05 → improved → keep
+echo "--- Test: both tolerance and significance absent → both fall back to global → keep ---"
+global_both_config=$(mktemp)
+cat > "$global_both_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "global-both-bench",
+      "command": "echo '{\"score\": 110}'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better"
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.05,
+  "significance_threshold": 0.05
+}
+EOF
+global_both_baseline=$(mktemp)
+echo '{"metrics":{"score":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$global_both_baseline"
+result=$("$EVALUATE" "$global_both_config" "$global_both_baseline" 2>/dev/null)
+# delta=+10%, global significance=5% → 0.10 > 0.05 → improved → keep
+assert_json_field "global-both: verdict is keep (using global thresholds)" "$result" '.verdict' 'keep'
+assert_json_field "global-both: score in improved" "$result" '.improved | contains(["score"])' 'true'
+assert_json_field "global-both: no regressions" "$result" '.regressed | length' '0'
+rm -f "$global_both_config" "$global_both_baseline"
+
+# Test: same metric name defined in two benchmarks → second value overwrites first in BENCH_METRICS
+# bench-first outputs score=50; bench-second outputs score=120.
+# In compare mode, BENCH_METRICS ends with score=120. baseline=100 → delta=+20% → improved → keep.
+echo "--- Test: same metric name in two benchmarks → second value used (overwrite) ---"
+dup_metric_config=$(mktemp)
+cat > "$dup_metric_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "bench-first",
+      "command": "echo '{\"score\": 50}'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    },
+    {
+      "name": "bench-second",
+      "command": "echo '{\"score\": 120}'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+dup_metric_baseline=$(mktemp)
+echo '{"metrics":{"score":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$dup_metric_baseline"
+result=$("$EVALUATE" "$dup_metric_config" "$dup_metric_baseline" 2>/dev/null)
+# bench-second's score=120 overwrites bench-first's score=50 → candidate=120 vs baseline=100 → +20% → keep
+assert_json_field "dup-metric: verdict is keep (second benchmark's value used)" "$result" '.verdict' 'keep'
+assert_json_field "dup-metric: score in improved (120 > 100)" "$result" '.improved | contains(["score"])' 'true'
+assert_json_field "dup-metric: candidate value reflects second benchmark (120)" "$result" '.metrics.score.candidate' '120'
+rm -f "$dup_metric_config" "$dup_metric_baseline"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
