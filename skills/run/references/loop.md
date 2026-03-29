@@ -52,7 +52,28 @@ Read the last 5 rows from `experiments.tsv`. Format as:
 
 Include theme, commit message, and verdict only. Do NOT include metric values, scores, or evaluation details.
 
-## 3f. Spawn Experimenter
+## 3f. Harvest Scan (pre-spawn)
+
+Before spawning the experimenter, run the harvest scan to identify low-hanging-fruit files for the selected theme:
+
+```bash
+FOCUS=$(bash scripts/harvest-themes.sh "$THEME" "$PROJECT_ROOT")
+```
+
+`FOCUS` is a newline-separated list of JSON objects: `{"path":"...","reason":"..."}`.
+
+If `FOCUS` is non-empty, extract the file paths and include them in the experimenter prompt as:
+```
+Focus on these files (structural reasons provided):
+<path> — <reason>
+<path> — <reason>
+```
+
+**Goodhart constraint (BINDING):** Pass file paths and structural reasons only — NEVER pass metric names, scores, or evaluation details. The experimenter must remain blind to scoring.
+
+If `FOCUS` is empty (unknown theme or no matches), spawn experimenter with full autonomy — no focus hint.
+
+## 3g. Spawn Experimenter
 
 Build the experimenter prompt with:
 - Theme name
@@ -60,6 +81,7 @@ Build the experimenter prompt with:
 - Forbidden paths from `constraints.forbidden_paths`
 - Test modification policy from `constraints.test_modification`
 - Recent experiment summaries (from 3e)
+- Focus files from harvest scan (from 3f), if any
 
 Do NOT include: metric names, benchmark definitions, scoring logic, tolerance/significance values, current scores, evaluate-config.json contents, or trust tier number.
 
@@ -74,7 +96,7 @@ Agent(
 
 Record the start time before spawning.
 
-## 3g. Collect Results
+## 3h. Collect Results
 
 When the experimenter returns:
 
@@ -96,7 +118,7 @@ When the experimenter returns:
    cd <worktree_path> && git diff --name-only main...HEAD
    ```
 
-## 3h. Evaluate
+## 3i. Evaluate
 
 1. Update `evaluate-config.json` with changed files for the coverage gate's `changed_files` array.
 
@@ -122,7 +144,7 @@ When the experimenter returns:
    }
    ```
 
-## 3i. Act on Verdict
+## 3j. Act on Verdict
 
 **gate_fail / regress / neutral:**
 ```bash
@@ -173,7 +195,7 @@ Increment the appropriate counter. For `neutral`: increment `theme_stagnation[TH
 
    If the review fails or times out, set `DEBATE_ANNOTATION = null`. Never let a failed review block the loop.
 
-## 3j. Log Experiment
+## 3k. Log Experiment
 
 Append to `experiments/experiments.tsv`:
 ```
@@ -205,7 +227,7 @@ Write `experiments/<id>/context.json`:
 }
 ```
 
-## 3k. Epoch Drift Check
+## 3l. Epoch Drift Check
 
 After every experiment, compute drift for each metric:
 ```
@@ -214,11 +236,11 @@ drift_pct = abs(rolling[metric] - epoch[metric]) / epoch[metric]
 
 If any metric has drifted beyond `safety.epoch_drift_threshold` (default 5%) in the regressing direction → halt session immediately. Log: `"EPOCH DRIFT HALT: <metric> drifted <drift_pct>%"`.
 
-## 3l. Persist State
+## 3m. Persist State
 
 Write `experiments/state.json` after every experiment to enable crash recovery.
 
-## 3m. Increment and Continue
+## 3n. Increment and Continue
 
 ```
 experiment_count += 1 → go to 3a
