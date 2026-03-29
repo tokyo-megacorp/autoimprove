@@ -82,3 +82,99 @@ Per-experiment detail: ./experiments/*/context.json
 ```
 
 Adapt the output to what's actually present — skip sections if there's no data (e.g., no stagnated themes, no discards worth noting).
+
+---
+
+# Usage Examples
+
+## Example 1: End-of-Session Summary
+
+```
+User: show me the autoimprove report
+```
+
+Output after a session with 5 experiments (3 kept, 1 neutral, 1 regressed):
+
+```
+autoimprove report — my-project — 2026-03-29
+
+Summary
+  Experiments:  5 run, 3 kept, 1 neutral, 1 regressed, 0 failed
+  Epoch drift:  +8.3% improvement from session start
+  Trust tier:   2 (consecutive keeps: 3)
+  Budget used:  5 / 15 experiments
+
+Kept Experiments (merged to main)
+  #001  failing_tests   "Fix off-by-one in date range filter"
+  #003  todo_comments   "Implement missing input sanitizer from TODO"
+  #005  coverage_gaps   "Add tests for empty-collection edge case"
+
+Notable Discards
+  #002  lint_warnings   neutral  "Remove unused import in helpers.js"
+  #004  coverage_gaps   regress  "Add tests for random ID generator"
+
+Metric Trends
+  test_count:   42 → 46  (+9.5%)   ↑ improved
+  lint_errors:   8 →  7  (-12.5%)  ↑ improved (lower is better)
+  coverage:     71 → 74  (+4.2%)   ↑ improved
+
+Full log:              ./experiments/experiments.tsv
+Per-experiment detail: ./experiments/*/context.json
+```
+
+## Example 2: Post-Regression Review
+
+```
+User: what experiments were discarded in the last run?
+```
+
+The skill filters for `regressed` and `failed` verdicts in the most recent session and lists them with their theme and description. This helps identify which themes to cool down or which test patterns are fragile.
+
+## Example 3: Trust Tier Progress Check
+
+```
+User: how close are we to trust tier 3?
+```
+
+The skill reads `state.json` for `consecutive_keeps` and compares to the tier thresholds in `autoimprove.yaml`. It reports current tier, progress toward the next, and which themes have been stagnating (which resets the count).
+
+## Example 4: Metric Drift Alert
+
+After a session where `todo_count` drifted -25% (many TODOs resolved):
+
+```
+Metric Trends
+  todo_count:  18 →  9  (-50.0%)  ↑ improved (lower is better)  *** EPOCH DRIFT ALERT ***
+  test_count:  55 → 57  (+3.6%)   ↑ improved
+```
+
+The `EPOCH DRIFT ALERT` flag appears when any metric's drift exceeds the `epoch_drift_threshold` from `autoimprove.yaml` (default 5%). This signals the rolling baseline may need re-anchoring — or that a burst of improvements was just made and the baseline should be updated.
+
+---
+
+# Edge Cases and Pitfalls
+
+- **Missing `experiments/` directory:** If no session has run yet, the skill says so and suggests `/autoimprove run`. It never crashes on missing files.
+- **Missing `epoch-baseline.json`:** Drift calculation is skipped for that metric. The skill notes the missing baseline rather than silently skipping drift reporting.
+- **`experiments.tsv` with no rows:** The skill reports `0 run` and skips the Kept/Discards sections. This is normal for a freshly initialized project.
+- **Stale `state.json`:** If a session was interrupted (e.g., agent crash), `state.json` may reflect a partial run. The skill reads it faithfully and does not attempt to reconstruct state from `.tsv` — report what's there.
+- **Metric direction:** Some metrics are "lower is better" (lint errors, todo count, failing tests). When drift is negative for these metrics, it should be flagged as an improvement, not a regression. The report uses `autoimprove.yaml`'s `lower_is_better` flag to determine direction.
+- **Multiple sessions in TSV:** `experiments.tsv` may contain rows from many past sessions. "Most recent session" is defined by the `session_id` field — group rows by session ID and show the latest group as current, with aggregate counts for prior sessions.
+
+---
+
+# Integration Points
+
+- **`/status`** — The live complement to `/report`. Use `/status` to see what's *currently running* (active worktrees, cooldowns); use `/report` to see what *already happened* (kept experiments, metric trends).
+- **`/decisions`** — `/report` shows code-level experiment outcomes; `/decisions` shows design-level decisions. Run both for a complete project retrospective.
+- **`/run`** — After reviewing a report that shows stagnation in a theme, `/run` picks the next theme. If the report shows consecutive failures, the trust tier will have dropped and `/run` will adjust scope automatically.
+- **`/history`** — For per-experiment detail beyond what the report shows, `/history` provides a per-commit view of what was changed in each kept experiment.
+- **`autoimprove.yaml`** — The report reads `epoch_drift_threshold` and metric `lower_is_better` flags from this file. If drift alerts seem wrong, check the YAML configuration first.
+
+---
+
+# When NOT to Use This Skill
+
+- To see the *current* session state (active agents, theme queue) → use `/status`
+- To browse per-commit diffs → use `/history`
+- To start or continue a session → use `/run`
