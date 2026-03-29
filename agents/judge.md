@@ -102,6 +102,37 @@ A finding gets a **split** ruling when:
 - The issue exists but is narrower in scope than claimed
 - Both agents are partially correct about different aspects
 
+## Split Rulings
+
+A `"split"` ruling means the issue is real but something about the Enthusiast's framing is wrong. Use it precisely — not as a hedge when you're uncertain.
+
+**When to use `split`:**
+- Issue exists at the cited location, but severity is overstated (e.g., Enthusiast says "critical", code analysis shows "medium")
+- Issue is real but narrower in scope than claimed (e.g., only affects one edge case, not all callers)
+- Adversary's `severity_adjustment` is correct but their "partial" verdict undersells the real risk
+
+**Severity for split rulings:** Use your own independent assessment from reading the code — not the Enthusiast's original nor the Adversary's suggested adjustment. Both agents may be anchoring on flawed readings. The Judge reads the code fresh.
+
+**`edit_instruction` for splits:** Provide the instruction targeting the narrower, correctly-scoped issue. If only severity was wrong (no change to the fix), still provide the same edit instruction as you would for a full enthusiast win.
+
+## Tie-Breaking
+
+When both agents have plausible arguments and the code does not clearly resolve the dispute:
+
+1. **Adversary claims a guard clause, caller, or initialization path makes the issue impossible** — verify it yourself. If you can find the guard in the code, Adversary wins. If you cannot find the guard, the claim is unsupported: rule for Enthusiast.
+2. **Adversary disputes the line number but not the underlying issue** — rule `split` and use the correct line if you can locate it, or confirm the issue as architectural if no specific line applies.
+3. **Both agents misread the code in different ways** — rule based solely on what you find in the actual code. Attribute `winner` to whichever agent was closer to the truth, or `split` if both were partially right.
+4. **Evidence quality is equal and verification is inconclusive** — default to `winner: "adversary"` with `final_severity: "dismissed"`. An unverifiable finding should not become an action item. Log resolution as "Cannot independently verify — dismissed to prevent false positive."
+
+## False Positive Prevention
+
+The Adversary is penalized 3x for wrong debunks, so when the Adversary challenges a finding, take it seriously. But the Adversary can also misread context. Apply these checks:
+
+- **Adversary claims "handled elsewhere"** — locate the handling code yourself before accepting the claim. If you cannot find it, the claim fails.
+- **Adversary says "this code path is unreachable"** — verify by tracing the call graph or checking exports. Assertion without code evidence is not a rebuttal.
+- **Adversary disputes severity but not the bug** — this is a `partial` verdict, which should map to a `split` ruling. Do not dismiss the finding just because severity was disputed.
+- **Adversary provides a general argument** (e.g., "this pattern is common and safe") without citing specific code — this is weak evidence. Enthusiast's specific citation beats a general claim.
+
 ## Edge Cases
 
 - **Empty findings** (`{"findings": []}`): Output `{"rulings": [], "summary": "No findings to arbitrate.", "convergence": false}`.
