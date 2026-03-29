@@ -74,7 +74,7 @@ constraints:
     - .claude/**                # local claude config
     - package.json              # dependency manifest
     - package-lock.json
-    - tests/**                  # test suite — additive_only handles this
+    # tests/ governed by test_modification: additive_only (not forbidden_paths)
     # skills/, commands/, agents/ are INTENTIONALLY NOT forbidden — they should evolve
   test_modification: additive_only
   trust_ratchet:
