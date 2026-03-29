@@ -80,3 +80,28 @@ xgh:
       - "project:xgh"
       - "source:github"
   allocation: 0.20  # 20% of xgh implementations feed autoimprove pipeline
+
+
+# Signal harvester — runs as step 0 before each experiment cycle.
+# Reads signals, detects anomalies, feeds theme selection.
+harvester:
+  signal_dir: "~/.claude/signals"
+  window_days: 7
+  anomaly_thresholds:
+    failure_rate_multiplier: 2.0
+    duration_multiplier: 2.0
+  severity_levels:
+    critical: 5.0
+    high: 3.0
+    medium: 2.0
+  source_theme_map:
+    - pattern: "xgh:"
+      theme: "retrieval-reliability"
+    - pattern: "lcm:"
+      theme: "memory-reliability"
+    - pattern: "org:skill-"
+      theme: "skill-quality"
+    - pattern: "hook:"
+      theme: "hook-performance"
+    - pattern: "agent:"
+      theme: "agent-efficiency"

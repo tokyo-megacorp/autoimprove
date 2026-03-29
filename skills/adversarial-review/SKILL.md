@@ -295,6 +295,47 @@ After formatting output, finalize the run folder (if `RUN_DIR` is set).
 }
 ```
 
+**Write `$RUN_DIR/report.md`** — human-readable summary of the run:
+
+````markdown
+# Adversarial Review Report
+
+**Run:** {RUN_ID}  
+**Target:** {target}  
+**Date:** {date}  
+**Rounds:** {rounds_completed}{if converged: " (converged at round {converged_at_round})"} | **Model:** {model}
+
+## Confirmed Findings
+
+| Sev | ID | File:Line | Finding | Edit Instruction |
+|-----|----|-----------|---------|-----------------|
+{For each confirmed finding (winner=enthusiast or winner=split):}
+| {final_severity} | {finding_id} | {file}:{line} | {resolution} | {edit_instruction} |
+
+{If no confirmed findings: output row: | — | — | — | No confirmed findings. | — |}
+
+## Dismissed / Debunked
+
+| ID | Finding | Reason |
+|----|---------|--------|
+{For each dismissed finding (winner=adversary):}
+| {finding_id} | {description} | {resolution} |
+
+{If no dismissed findings: output row: | — | No dismissed findings. | — |}
+
+## Round Trail
+
+{For each round N:}
+### Round {N}
+- Enthusiast: {count} findings
+- Confirmed: {comma-separated list of "ID (severity)" for enthusiast/split rulings}
+- Debunked: {comma-separated list of IDs for adversary rulings}
+````
+
+Generate this file from the final `run.json` data. If `RUN_DIR` is not set, skip silently.
+
+---
+
 **Print the run folder path** at the end of the output:
 ```
 📁 Run saved: ~/.autoimprove/runs/<RUN_ID>/

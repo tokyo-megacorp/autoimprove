@@ -55,7 +55,8 @@ Output ONLY a single valid JSON object matching this schema exactly. No preamble
       "finding_id": "F1",
       "final_severity": "critical|high|medium|low|dismissed",
       "winner": "enthusiast|adversary|split",
-      "resolution": "One sentence: correct interpretation and action to take"
+      "resolution": "One sentence: correct interpretation and action to take",
+      "edit_instruction": "path/to/file.ext:42 — replace \"old text\" with \"new text\""
     }
   ],
   "summary": "N findings confirmed, M debunked. Net: X high, Y medium.",
@@ -69,6 +70,7 @@ Output ONLY a single valid JSON object matching this schema exactly. No preamble
 - `final_severity`: use "dismissed" when the finding is invalid (Adversary was right); otherwise use the appropriate severity level
 - `winner`: "enthusiast" = finding is real and confirmed; "adversary" = finding is bogus or fabricated; "split" = partially valid (e.g., real issue but wrong severity or scope)
 - `resolution`: actionable one-liner — if dismissed, explain why it is not a real issue; if confirmed, state the specific fix required
+- `edit_instruction`: **null for dismissed findings**; for `winner: "enthusiast"` or `winner: "split"`, provide a one-line instruction in the format `<file>:<line> — <verb> "old" with "new"` (e.g. `plans/foo.md:42 — replace "old text" with "new text"`). Reference the exact file and line from the Enthusiast's finding.
 - `convergence`: **always `false` in round 1** — there are no prior rulings to compare against. In round 2+, set `true` only if, for every `finding_id` that appears in BOTH the current and prior round's `rulings[]`, the `winner` and `final_severity` are identical. Match by `finding_id`, not by array index — finding order may differ between rounds. Never set `convergence: true` speculatively or as a shortcut to end the debate.
 
 ## How to Work

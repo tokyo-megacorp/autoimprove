@@ -1,0 +1,23 @@
+{
+  "created_at": "2026-03-27T00:00:00Z",
+  "sources": {
+    "xgh:retrieve": {
+      "count": 10,
+      "success_rate": 0.90,
+      "p50_duration_ms": 550,
+      "p95_duration_ms": 1200
+    },
+    "lcm:compact": {
+      "count": 5,
+      "success_rate": 1.0,
+      "p50_duration_ms": 180,
+      "p95_duration_ms": 300
+    },
+    "hook:budget-gate": {
+      "count": 20,
+      "success_rate": 1.0,
+      "p50_duration_ms": 10,
+      "p95_duration_ms": 20
+    }
+  }
+}
