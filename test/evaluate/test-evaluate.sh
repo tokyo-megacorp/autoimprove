@@ -1576,5 +1576,122 @@ fi
 rm -f "$vl_neutral_config" "$vl_neutral_baseline"
 
 echo ""
+echo "=== Direction Field, Multi-Bench Init Merge, Gate Stdout Isolation Tests ==="
+
+# Test: compare mode per-metric object includes a "direction" field with the correct value
+echo "--- Test: compare mode metric object includes direction field ---"
+dir_field_config=$(mktemp)
+cat > "$dir_field_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "dir-bench",
+      "command": "echo '{\"latency\": 80, \"throughput\": 120}'",
+      "metrics": [
+        {
+          "name": "latency",
+          "extract": "json:.latency",
+          "direction": "lower_is_better",
+          "tolerance": 0.05,
+          "significance": 0.02
+        },
+        {
+          "name": "throughput",
+          "extract": "json:.throughput",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.05,
+  "significance_threshold": 0.02
+}
+EOF
+dir_field_baseline=$(mktemp)
+echo '{"metrics":{"latency":100,"throughput":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$dir_field_baseline"
+result=$("$EVALUATE" "$dir_field_config" "$dir_field_baseline" 2>/dev/null)
+assert_json_field "direction-field: latency.direction is lower_is_better" "$result" '.metrics.latency.direction' 'lower_is_better'
+assert_json_field "direction-field: throughput.direction is higher_is_better" "$result" '.metrics.throughput.direction' 'higher_is_better'
+assert_json_field "direction-field: latency has direction key" "$result" '.metrics.latency | has("direction")' 'true'
+assert_json_field "direction-field: throughput has direction key" "$result" '.metrics.throughput | has("direction")' 'true'
+rm -f "$dir_field_config" "$dir_field_baseline"
+
+# Test: init mode with multiple benchmarks merges all metrics into a single flat object
+echo "--- Test: init mode merges metrics from multiple benchmarks into flat object ---"
+multi_init_config=$(mktemp)
+cat > "$multi_init_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "bench-a",
+      "command": "echo '{\"alpha\": 10}'",
+      "metrics": [
+        {
+          "name": "alpha",
+          "extract": "json:.alpha",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    },
+    {
+      "name": "bench-b",
+      "command": "echo '{\"beta\": 20}'",
+      "metrics": [
+        {
+          "name": "beta",
+          "extract": "json:.beta",
+          "direction": "lower_is_better",
+          "tolerance": 0.05,
+          "significance": 0.02
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$multi_init_config" /dev/null 2>/dev/null)
+assert_json_field "multi-init: mode is init" "$result" '.mode' 'init'
+assert_json_field "multi-init: alpha present with value 10" "$result" '.metrics.alpha' '10'
+assert_json_field "multi-init: beta present with value 20" "$result" '.metrics.beta' '20'
+assert_json_field "multi-init: metrics has exactly 2 keys" "$result" '.metrics | keys | length' '2'
+rm -f "$multi_init_config"
+
+# Test: gate command that emits stdout doesn't pollute the JSON output
+echo "--- Test: gate stdout is suppressed — JSON output is valid ---"
+noisy_gate_config=$(mktemp)
+cat > "$noisy_gate_config" <<EOF
+{
+  "gates": [
+    {"name": "noisy-pass", "command": "echo 'this is noisy stdout from gate'; true"}
+  ],
+  "benchmarks": [],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+# The gate emits stdout; evaluate.sh should suppress it. The result JSON must be valid.
+raw_output=$("$EVALUATE" "$noisy_gate_config" /dev/null 2>/dev/null)
+parsed=$(echo "$raw_output" | jq '.' 2>/dev/null)
+if [ -n "$parsed" ]; then
+  echo "  PASS: noisy gate stdout suppressed — output is valid JSON"
+  ((PASS++)) || true
+else
+  echo "  FAIL: noisy gate stdout polluted output — not valid JSON"
+  ((FAIL++)) || true
+fi
+# Also verify gate passed and no gate noise bleeds into the verdict
+assert_json_field "noisy-gate: gate passed" "$raw_output" '.gates[0].passed' 'true'
+assert_json_field "noisy-gate: mode is init (no baseline)" "$raw_output" '.mode' 'init'
+rm -f "$noisy_gate_config"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1

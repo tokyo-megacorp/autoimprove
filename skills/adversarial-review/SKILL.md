@@ -106,6 +106,7 @@ Output your findings as a single JSON object matching the schema. Nothing else.
 - If valid JSON with a non-empty `findings` array → store as `ENTHUSIAST_OUTPUT` and continue.
 - If invalid JSON → re-prompt once: `"Your previous response was not valid JSON. Return only the corrected JSON object — no prose, no markdown fences."` Re-parse. If still invalid → log `enthusiast_malformed_json` for this round, skip to next round (or abort if only round).
 - If valid JSON but `findings` is empty → note "Enthusiast found no issues" and skip 3b/3c for this round; proceed to 3e.
+- **Sparse-output check (round 1 only):** If round == 1 and the raw response text is ≤ 50 characters (e.g. `{}`, `{"findings":[]}`, or a single word), the response is almost certainly truncated or the model failed silently. Re-prompt once: `"Your response appears to be incomplete. Return the full JSON object with all findings — do not truncate."` If the retry is also sparse (≤ 50 chars) or invalid, log `enthusiast_sparse_output` and treat as `findings: []` (not as a clean empty — note it in the output warning).
 
 ## 3b. Spawn Adversary
 
@@ -386,3 +387,5 @@ Also persist the self-assessment in `$RUN_DIR/meta.json` under a `self_assessmen
 - Each agent is spawned with `model: sonnet` for cost efficiency.
 - The review skill NEVER influences keep/discard decisions in the autoimprove loop. It is advisory only.
 - Total token budget: the orchestrator should track approximate token usage. If approaching session limits, warn the user.
+- **Sparse-output detection:** A model returning ≤ 50 characters of valid JSON on the first round is a strong signal of silent failure or context-window truncation — not a genuine "no findings" result. The re-prompt in 3a is the only recovery mechanism. If after retry the output is still sparse, warn the user: `"Warning: Enthusiast returned suspiciously short output — findings may be incomplete."` This warning appears in the final output alongside any `malformed_json` warnings.
+- **Telemetry fail-safe:** If `mkdir -p ~/.autoimprove/runs/<RUN_ID>` fails (permissions, disk full, read-only filesystem), set `RUN_DIR=""` and continue. All subsequent steps that reference `$RUN_DIR` must check `if [ -n "$RUN_DIR" ]` before writing. Telemetry failure is non-fatal and must never block or alter the review result. Log a single inline warning: `"⚠ Telemetry unavailable: <error>"` appended to the Self-Assessment section.
