@@ -133,6 +133,9 @@ Proposals                             ← only if pending proposals exist
 - Active worktrees after a session ends may be crash orphans. Run `/autoimprove run` — it performs crash recovery automatically (step 2f).
 - If epoch and rolling baselines diverge significantly, run `/autoimprove report` for metric-level drift detail.
 - Trust tier drops one tier on any regression (`regression_penalty` in config). If `consecutive_keeps` is unexpectedly low, check the log for recent regressions.
+- Theme cooldowns are per-session, not per-experiment. A theme that ran twice in one session still only decrements its cooldown counter once.
+- Stagnation counters and trust tier progress are the two most actionable signals: stagnation → change theme or adjust scope; tier progress → increase scope if you're close to the next tier.
+- The SHA shown for rolling and epoch baselines is the git commit SHA of the snapshot taken, not the HEAD commit. If you reset or rebased, these SHAs may no longer exist in the repo — that will cause benchmark drift comparisons to fail silently.
 
 ---
 
@@ -162,6 +165,14 @@ user: what trust tier is autoimprove on?
 
 Returns the trust tier and progress toward the next tier. If the output shows `Proposals: 3 pending`, follow up with `/autoimprove proposals` before running another session.
 
+## Example 4 — Diagnose why a session seems stuck
+
+```
+user: autoimprove status --verbose
+```
+
+Use when `/autoimprove run` keeps picking the same theme or producing neutral results. The verbose output shows exact cooldown counts per theme and non-zero stagnation counters — this tells you whether a theme is being avoided (cooldown) or is genuinely not producing improvements (stagnation). Stagnated themes trigger Phase 2 when the stagnation window is reached.
+
 ---
 
 # Edge Cases and Pitfalls
@@ -171,6 +182,15 @@ Returns the trust tier and progress toward the next tier. If the output shows `P
 - **Baseline timestamps far in the past**: The rolling baseline is updated after each kept experiment. If it shows "3 days ago", the session may have been idle or every recent experiment regressed/failed.
 - **Trust tier unexpectedly low**: A single regression resets `consecutive_keeps` to 0 and drops the tier by one. Check the last few entries in the experiment log with `/history --last 5` to identify the culprit.
 - **Theme cooldown counts seem wrong**: Cooldowns are decremented per session run, not per experiment. Running multiple experiments in one session decrements the counter once.
+
+---
+
+# Common Failure Patterns
+
+- **`state.json` has wrong session_id after manual intervention:** If you manually reset or copied state from another project, the session_id may not match the TSV rows. Status reports what's in `state.json` — verify with `/history --last 5` if the counts seem inconsistent.
+- **Stagnation counter stuck at non-zero:** A stagnation counter increments when a theme produces non-improvements repeatedly. It resets to 0 when that theme produces a keep. If a theme never runs (cooldown too long), its counter never resets. Lower the cooldown in `autoimprove.yaml` or run a focused session with `--theme <name>`.
+- **Pending proposals blocking run:** If Phase 2 proposals are generated but none are approved, the run skill may stall waiting for approval. Status will show the proposal count — use `/autoimprove proposals list` to review and approve before the next run.
+- **Trust tier shows lower than expected:** A single regressed experiment resets consecutive_keeps to 0, which can drop the tier. If this seems wrong, check `/history --last 5` to find the regressed experiment and verify the benchmark was working correctly at that point.
 
 ---
 
@@ -188,3 +208,15 @@ Returns the trust tier and progress toward the next tier. If the output shows `P
 - **Do not use** to review past experiment metrics in depth — use the report skill for that.
 - **Do not use** to start or resume a session — use the run skill.
 - **Do not use** as a substitute for `git worktree list` when debugging a specific worktree's branch or commit — status only surfaces the path and HEAD SHA.
+- **Do not use** to check if tests pass — status reads state files, it does not re-run gates or benchmarks.
+
+---
+
+# Recommended Session Start Checklist
+
+Before each `/autoimprove run`, run `/autoimprove status` and verify:
+
+1. No orphan worktrees (crash from last session)
+2. No stagnated themes you intended to run (cooldown may block them)
+3. Trust tier is as expected (a surprise drop signals a recent regression)
+4. No pending proposals that should be reviewed first (blocks Phase 2 auto-run)

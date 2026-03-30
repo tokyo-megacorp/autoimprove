@@ -164,12 +164,32 @@ The slug is auto-derived from `REPORT.problem`. If the problem text is "Which da
 
 ---
 
+# Common Failure Patterns
+
+- **Skill writes a file but the frontmatter is incomplete:** This happens when the convergence JSON has unexpected field names (e.g., `winner_label` instead of `winner`). Always validate that `problem`, `convergence.winner`, `convergence.verdict_type`, and `convergence.winner_composite` exist before writing. Print which fields are missing.
+- **Slug is empty or too short after stripping:** Some problem statements are mostly punctuation (e.g., "???"). If the derived slug is empty or fewer than 3 chars, ask the user to provide an explicit slug via the argument: `/idea-archive my-slug`.
+- **Archive file exists from a same-day run:** This is normal for iterative matrix sessions. The skill automatically appends `-2`, `-3` to the filename. Confirm the final filename in the output so the user knows which file was written.
+- **Convergence JSON from a different version of idea-matrix:** Older runs may not have `required_mitigations` or `top_insights` fields. If a section's source field is missing or null, write `None.` for that section — never skip the section header, as downstream tools expect consistent structure.
+
+---
+
 # Integration Points
 
 - **idea-matrix** → idea-archive: the canonical pipeline. Run idea-matrix first, then archive the winner.
 - **decisions skill**: After archiving, run `/decisions` to list all archived decisions and find this one by date or slug.
 - **adversarial-review**: Major architectural decisions should go through adversarial-review before being idea-archived. The AR verdict can be included in `Top Insights`.
 - **LCM / lcm-capture**: For cross-project memory, also run `lcm_store` with the decision summary after archiving. idea-archive is local-only (files in `decisions/`); LCM persists across repos.
+- **adversarial-review → idea-archive**: After a major architectural AR verdict, archive the winning approach as a decision. The AR output (required_mitigations, recommended_improvements) maps directly to the `Required Mitigations` and `Top Insights` sections of the archive file.
+- **git history**: The `decisions/` directory should be committed to version control. The history of when a decision was made (git blame on the file) is as important as the decision content itself.
+
+---
+
+# Notes
+
+- The `decisions/` directory is local to the project — it is not synced by LCM or any cross-project store. If you need the decision accessible from other repos, also call `lcm_store` after archiving.
+- The frontmatter fields (`winner`, `verdict_type`, `composite_score`) are what `/decisions` uses for its summary line. If any field is missing or null, the skill shows `[unreadable]` for that file. Always verify frontmatter is complete before closing the workflow.
+- Slug truncation at 50 chars can cause ambiguous filenames if two problems start with the same words. When in doubt, provide an explicit slug argument.
+- Files in `decisions/` are treated as append-only by convention — never overwrite an existing decision. If a decision was revised, archive the updated result as a new file with a `-revised` or `-v2` suffix.
 
 ---
 
@@ -178,3 +198,5 @@ The slug is auto-derived from `REPORT.problem`. If the problem text is "Which da
 - **Do not use** to archive adversarial-review verdicts directly — those have their own output format. Use the report skill for AR summaries.
 - **Do not use** to record informal notes or todo items — this skill is specifically for structured convergence JSON from idea-matrix.
 - **Do not use** as a replacement for `lcm_store` when cross-project memory is needed — file-based archives are repo-scoped only.
+- **Do not use** to retroactively document a decision that was made informally — if there is no convergence JSON, use a plain markdown file in `decisions/` instead. This skill's value is in parsing the structured output, not in freeform note-taking.
+- **Do not use** to archive in-progress matrices — only archive when idea-matrix has produced a final convergence report with a clear winner. Partial results produce incomplete frontmatter and confuse `/decisions`.

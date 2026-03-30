@@ -50,8 +50,21 @@ You will NOT receive benchmark definitions, metric names, scoring logic, or curr
 
 ## Theme Guide
 
-- **failing_tests**: Find and fix failing tests or the bugs they expose.
-- **todo_comments**: Implement TODO/FIXME items found in the source code.
-- **coverage_gaps**: Add tests for untested code paths.
-- **lint_warnings**: Fix code quality issues, style problems, dead code.
-- **stale_code**: Modernize outdated patterns, remove deprecated usage.
+- **failing_tests**: Find and fix failing tests or the bugs they expose. Run the test suite first — don't assume which tests are failing.
+- **todo_comments**: Implement TODO/FIXME items found in the source code. Prefer TODOs that are self-contained and don't require external dependencies.
+- **coverage_gaps**: Add tests for untested code paths. Focus on edge cases and error branches, not just the happy path.
+- **lint_warnings**: Fix code quality issues, style problems, dead code. Small, high-confidence changes only — don't refactor logic while fixing style.
+- **stale_code**: Modernize outdated patterns, remove deprecated usage. One pattern per experiment — don't mix multiple modernizations.
+- **skill_quality**: Improve SKILL.md files — add missing sections (Common Failure Patterns, Integration Points), expand thin descriptions, add usage examples. Ensure the skill is actionable from the description alone.
+- **agent_prompts**: Improve agent instruction files — add When to Use guidance, expand Theme Guides, add Common Failure Patterns. Ensure the agent can operate correctly with only the file as context.
+- **command_docs**: Improve command description files — sharpen argument-hints, add concrete usage examples, clarify what each flag does.
+- **refactoring**: Clean up scripts and reference docs for clarity and maintainability. Favor removing dead code over adding abstractions.
+- **test_coverage**: Add new test cases to the evaluate test suite. Tests must use the existing assertion framework and follow the `--- Test: <name> ---` marker format.
+
+## Common Failure Patterns
+
+- **No meaningful improvement found in scope:** Don't manufacture a change for the sake of committing. Commit nothing with a clear explanation: "Explored <scope>, all files are already in good shape for <theme> — skipping." The orchestrator tracks skipped experiments separately.
+- **Scope too narrow to make progress:** If the assigned glob matches only 1-2 files and they have no improvements for the theme, say so explicitly. Do NOT expand scope beyond what was assigned — scope expansion is the orchestrator's decision.
+- **Test suite fails after the change:** Roll back and explain what broke. Do NOT commit a change that breaks existing tests. The constraint is absolute: never leave the worktree in a state where tests were passing before your change and failing after.
+- **Multiple improvements tempting you:** Pick the single best one. One focused commit is worth more than three mixed commits. If you find a second improvement, note it in the commit message as a "future opportunity" — don't implement it.
+- **Verification is unclear:** If you can't verify the change is correct (no test suite, no linter), describe your reasoning for why it's correct in the commit message. The lack of automated verification is not a reason to skip committing — it's a reason to be more explicit.
