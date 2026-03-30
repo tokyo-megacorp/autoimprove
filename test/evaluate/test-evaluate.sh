@@ -2892,5 +2892,248 @@ assert_json_field "three-gates: gate-gamma name correct" "$result" '.gates[2].na
 rm -f "$three_gates_config"
 
 echo ""
+echo "=== Reason String Comma-Separator Tests ==="
+
+# Test: multiple regressed metrics → reason string lists all with comma-space separator
+# evaluate.sh builds reason via: jq -r 'join(", ")' on SCORE_REGRESSED array.
+# With two regressed metrics (a, b), the reason should contain "a, b" (comma + space).
+echo "--- Test: multiple regressions → reason lists all metric names comma-separated ---"
+multi_regress_reason_config=$(mktemp)
+cat > "$multi_regress_reason_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "multi-regress-reason-bench",
+      "command": "echo '{\"alpha\": 50, \"beta\": 60}'",
+      "metrics": [
+        {
+          "name": "alpha",
+          "extract": "json:.alpha",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        },
+        {
+          "name": "beta",
+          "extract": "json:.beta",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+multi_regress_reason_baseline=$(mktemp)
+# alpha: 100→50 (-50%), beta: 100→60 (-40%) — both regress
+echo '{"metrics":{"alpha":100,"beta":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$multi_regress_reason_baseline"
+result=$("$EVALUATE" "$multi_regress_reason_config" "$multi_regress_reason_baseline" 2>/dev/null)
+assert_json_field "multi-regress-reason: verdict is regress" "$result" '.verdict' 'regress'
+mr_reason=$(echo "$result" | jq -r '.reason')
+if echo "$mr_reason" | grep -q "alpha"; then
+  echo "  PASS: multi-regress reason mentions 'alpha' (got: $mr_reason)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: multi-regress reason should mention 'alpha' (got: $mr_reason)"
+  ((FAIL++)) || true
+fi
+if echo "$mr_reason" | grep -q "beta"; then
+  echo "  PASS: multi-regress reason mentions 'beta' (got: $mr_reason)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: multi-regress reason should mention 'beta' (got: $mr_reason)"
+  ((FAIL++)) || true
+fi
+# The join(", ") produces "alpha, beta" — verify comma-space separator is present
+if echo "$mr_reason" | grep -q ", "; then
+  echo "  PASS: multi-regress reason has comma-space separator (got: $mr_reason)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: multi-regress reason should use comma-space separator (got: $mr_reason)"
+  ((FAIL++)) || true
+fi
+rm -f "$multi_regress_reason_config" "$multi_regress_reason_baseline"
+
+# Test: multiple improved metrics → reason string lists all with comma-space separator
+# evaluate.sh builds reason via: jq -r 'join(", ")' on SCORE_IMPROVED array.
+echo "--- Test: multiple improvements → reason lists all metric names comma-separated ---"
+multi_improve_reason_config=$(mktemp)
+cat > "$multi_improve_reason_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "multi-improve-reason-bench",
+      "command": "echo '{\"alpha\": 130, \"beta\": 150}'",
+      "metrics": [
+        {
+          "name": "alpha",
+          "extract": "json:.alpha",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        },
+        {
+          "name": "beta",
+          "extract": "json:.beta",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+multi_improve_reason_baseline=$(mktemp)
+# alpha: 100→130 (+30%), beta: 100→150 (+50%) — both improve
+echo '{"metrics":{"alpha":100,"beta":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$multi_improve_reason_baseline"
+result=$("$EVALUATE" "$multi_improve_reason_config" "$multi_improve_reason_baseline" 2>/dev/null)
+assert_json_field "multi-improve-reason: verdict is keep" "$result" '.verdict' 'keep'
+mi_reason=$(echo "$result" | jq -r '.reason')
+if echo "$mi_reason" | grep -q "alpha"; then
+  echo "  PASS: multi-improve reason mentions 'alpha' (got: $mi_reason)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: multi-improve reason should mention 'alpha' (got: $mi_reason)"
+  ((FAIL++)) || true
+fi
+if echo "$mi_reason" | grep -q "beta"; then
+  echo "  PASS: multi-improve reason mentions 'beta' (got: $mi_reason)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: multi-improve reason should mention 'beta' (got: $mi_reason)"
+  ((FAIL++)) || true
+fi
+if echo "$mi_reason" | grep -q ", "; then
+  echo "  PASS: multi-improve reason has comma-space separator (got: $mi_reason)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: multi-improve reason should use comma-space separator (got: $mi_reason)"
+  ((FAIL++)) || true
+fi
+rm -f "$multi_improve_reason_config" "$multi_improve_reason_baseline"
+
+echo ""
+echo "=== Passing Gate exit_code=0 Test ==="
+
+# Test: passing gate records exit_code=0 in output
+# run_gates stores exit_code for every gate. For a command that returns 0,
+# exit_code in the JSON should be 0 (not null, not absent).
+echo "--- Test: passing gate has exit_code=0 in output ---"
+pass_exit_config=$(mktemp)
+cat > "$pass_exit_config" <<EOF
+{
+  "gates": [{"name": "pass-ec", "command": "true"}],
+  "benchmarks": [],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$pass_exit_config" /dev/null 2>/dev/null)
+assert_json_field "pass-exit: gate passed=true" "$result" '.gates[0].passed' 'true'
+assert_json_field "pass-exit: exit_code is 0" "$result" '.gates[0].exit_code' '0'
+assert_json_field "pass-exit: exit_code is number type" "$result" '.gates[0].exit_code | type' 'number'
+rm -f "$pass_exit_config"
+
+echo ""
+echo "=== Negative Metric Value Tests ==="
+
+# Test: benchmark outputs a negative number → stored as JSON number (not string)
+# The run_benchmarks regex is ^-?[0-9]+(\.[0-9]+)?$ which matches negative integers and floats.
+# A metric like "delta: -5" should be stored as the number -5, not the string "-5".
+echo "--- Test: negative metric value stored as JSON number type ---"
+neg_metric_config=$(mktemp)
+cat > "$neg_metric_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "neg-metric-bench",
+      "command": "echo '{\"delta\": -5}'",
+      "metrics": [
+        {
+          "name": "delta",
+          "extract": "json:.delta",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$neg_metric_config" /dev/null 2>/dev/null)
+assert_json_field "neg-metric: mode is init" "$result" '.mode' 'init'
+assert_json_field "neg-metric: delta stored as number type" "$result" '.metrics.delta | type' 'number'
+delta_neg=$(echo "$result" | jq '.metrics.delta')
+if [ "$(echo "$delta_neg < 0" | bc -l)" = "1" ]; then
+  echo "  PASS: neg-metric: delta value is negative (got $delta_neg)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: neg-metric: delta value should be negative (got $delta_neg)"
+  ((FAIL++)) || true
+fi
+rm -f "$neg_metric_config"
+
+echo ""
+echo "=== Skipped Metric Absent from compare metrics Object ==="
+
+# Test: when a metric is skipped (missing candidate), it is absent from .metrics in compare output
+# The score_results loop only calls SCORE_METRICS_JSON += {k: v} when neither val is empty.
+# A metric with no candidate value should NOT appear as a key in .metrics at all.
+echo "--- Test: skipped metric (no candidate) is absent from .metrics object in compare output ---"
+skip_absent_config=$(mktemp)
+cat > "$skip_absent_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "skip-absent-bench",
+      "command": "echo '{\"present\": 110}'",
+      "metrics": [
+        {
+          "name": "present",
+          "extract": "json:.present",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        },
+        {
+          "name": "absent",
+          "extract": "json:.nonexistent_key",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+skip_absent_baseline=$(mktemp)
+# baseline has both; candidate only emits "present" → "absent" has no candidate → skipped
+echo '{"metrics":{"present":100,"absent":50},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$skip_absent_baseline"
+result=$("$EVALUATE" "$skip_absent_config" "$skip_absent_baseline" 2>/dev/null)
+assert_json_field "skip-absent: verdict is keep (present improved)" "$result" '.verdict' 'keep'
+assert_json_field "skip-absent: present IS in .metrics object" "$result" '.metrics | has("present")' 'true'
+# Skipped metric must not appear in .metrics comparison object
+absent_in_metrics=$(echo "$result" | jq '.metrics | has("absent")')
+assert_eq "skip-absent: absent metric NOT in .metrics object (was skipped)" "false" "$absent_in_metrics"
+assert_json_field "skip-absent: .metrics has exactly 1 key (only present)" "$result" '.metrics | keys | length' '1'
+rm -f "$skip_absent_config" "$skip_absent_baseline"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
