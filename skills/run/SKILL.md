@@ -32,8 +32,10 @@ Verify the environment before anything else:
 ```bash
 test -f autoimprove.yaml || { echo "FATAL: autoimprove.yaml not found in project root"; exit 1; }
 test -f scripts/evaluate.sh || { echo "FATAL: scripts/evaluate.sh not found"; exit 1; }
+test -f scripts/theme-weights.sh || { echo "FATAL: scripts/theme-weights.sh not found"; exit 1; }
 command -v jq >/dev/null || { echo "FATAL: jq is required but not installed"; exit 1; }
-chmod +x scripts/evaluate.sh
+command -v python3 >/dev/null || { echo "FATAL: python3 is required for theme-weights.sh"; exit 1; }
+chmod +x scripts/evaluate.sh scripts/theme-weights.sh
 PROJECT_ROOT=$(pwd)   # capture now — used when calling evaluate.sh from inside worktrees
 ```
 
@@ -210,6 +212,7 @@ These must hold throughout execution. If any is violated, halt and report.
 ## Additional Resources
 
 - **`references/loop.md`** — Full experiment loop (steps 3a–3m) and session end (steps 4a–4c)
+- **`scripts/theme-weights.sh`** — Computes adjusted theme weights from `experiments.tsv` history. Called at each theme selection (step 3c). Themes with higher keep rates get boosted weight; themes with no keeps get penalised (min 0.25× base). Experimenter never sees weights.
 
 ---
 

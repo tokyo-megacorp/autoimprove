@@ -23,9 +23,23 @@ if ALL active_themes have theme_stagnation[theme] >= stagnation_window → go to
 
 ## 3c. Theme Selection
 
-Pick a theme using weighted random from `themes.auto.priorities`. Skip themes on cooldown or stagnated.
+First, compute adjusted weights from historical experiment data:
 
-Weighted random: `P(T) = priorities[T] / sum(all eligible priorities)`.
+```bash
+WEIGHTS_JSON=$(bash scripts/theme-weights.sh autoimprove.yaml experiments/experiments.tsv)
+```
+
+Log: `[THEME_WEIGHTS: <WEIGHTS_JSON>]`
+
+Pick a theme using weighted random from the adjusted weights. Skip themes on cooldown or stagnated.
+
+Weighted random: `P(T) = adjusted_weights[T] / sum(all eligible adjusted_weights)`.
+
+Adjusted weights are computed by `theme-weights.sh` from `experiments.tsv`:
+- Cold start (< 3 samples): factor 0.5 × base (neutral, no history yet)
+- keep_rate 0% → 0.5× base; keep_rate 100% → 1.5× base; floor 0.25× base
+
+**Goodhart boundary:** `WEIGHTS_JSON` is used for selection only. Never include it in the experimenter prompt.
 
 If `--theme` was passed, use that theme exclusively (unless it's on cooldown or stagnated, in which case skip).
 
