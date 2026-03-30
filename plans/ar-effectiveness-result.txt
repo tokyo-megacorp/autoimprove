@@ -1,0 +1,2 @@
+Created benchmark/ar-effectiveness.sh for autoimprove#59 — measures AR precision via golden case fuzzy-matching and AR quality via LLM-as-judge (Sonnet), emits JSON with ar_precision/ar_quality_score/cases_run/cases_passed.
+No golden cases (benchmark/ar-golden/case-*/diff.txt + expected.txt) exist yet; script gracefully handles missing dirs and falls back to an ephemeral diff for the judge call. Script is executable and syntax-validated.

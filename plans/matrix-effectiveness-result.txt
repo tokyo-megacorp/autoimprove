@@ -1,0 +1,1 @@
+Created benchmark/matrix-effectiveness.sh for autoimprove#59. Script measures 3 quality metrics (cell_depth, convergence_quality, option_diversity) on golden problem "How to improve grind loop theme targeting" using idea-matrix skill with Haiku model.

@@ -1,0 +1,2 @@
+Added ar-effectiveness and matrix-effectiveness benchmarks with 5 metrics total.
+Updated themes: skill_quality 2→3, added skill_effectiveness: 3 (highest priority).

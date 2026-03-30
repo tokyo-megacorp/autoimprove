@@ -1,0 +1,3 @@
+Files created: benchmark/ar-golden/case-01/diff.txt + expected.txt, case-02/diff.txt + expected.txt, case-03/diff.txt + expected.txt, benchmark/judge-prompt.txt (7 files total).
+Finding counts: case-01 (lcm PR#196 auth/refactor) = 7 findings, case-02 (claudinho PR#146 workflow redesign) = 7 findings, case-03 (autoimprove PR#58 calibrate skill) = 7 findings.
+No issues encountered; all three PR diffs fetched cleanly via gh CLI and findings are grounded in verifiable diff content.
