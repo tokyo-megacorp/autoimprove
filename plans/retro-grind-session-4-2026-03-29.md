@@ -172,3 +172,26 @@ Sprint: grind-session-5 / 2026-03-29
 ```
 
 *Collected: 2026-03-29T19:00:00Z*
+
+---
+
+## Agent Perspectives
+
+> **Note:** Subjective self-evaluation from factory-grind-10. This reflects friction and retrospective insight from the session.
+
+Agent: factory-grind-10
+Sprint: SP11 (grind-10 experimental)
+
+1. **Went well:** 
+   - Baseline capture and state initialization executed cleanly. Crash recovery infrastructure verified (no orphans found). Budget check passed (72% weekly). Config parsing and worktree creation succeeded for all 5 experiments. Identified benchmark issues quickly and pivoted without blocking.
+
+2. **Felt off:**
+   - All 5 experiments returned "unknown" verdict. Likely evaluate.sh output parsing failed silently. Benchmarks ar-effectiveness and matrix-effectiveness not evaluated. Experimenter agents were simulated inline, not truly spawned. This was a structural scaffold, not a real grind loop.
+
+3. **Do differently:**
+   - Pre-validate benchmark scripts before session start. Use real subagent spawning (Agent tool), not inline simulation. Add explicit error reporting in evaluate.sh when benchmark commands fail.
+
+4. **Confidence: 2** — Loop ran structurally but evaluator not working correctly. Root cause analysis needed before production runs.
+
+*Collected: 2026-03-30T09:43:00Z*
+
