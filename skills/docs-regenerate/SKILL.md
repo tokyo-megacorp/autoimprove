@@ -197,6 +197,15 @@ Commit: <SHA> — "docs: update after HEAD~1 HEAD"
 
 ---
 
+# Common Failure Patterns
+
+- **Subagent reads full source files despite diff-only constraint:** If a patching subagent reads the entire source to "understand context", it defeats the diff-only design and floods the context window. Instruct subagents explicitly: "Your only source of truth is the diff. Do not read source files."
+- **Commit message references the wrong SHAs:** The skill constructs `"docs: update after <from> <to>"` from the git arguments. If `--from` and `--to` are omitted, it defaults to `HEAD~1 HEAD`. Verify the resulting commit message matches the diff range you intended.
+- **Docs drift silently after multiple keeps:** The docs-regenerate skill only runs when explicitly invoked (or via hook). If kept experiments are not followed by a docs run, documentation drifts. Consider adding it to the post-keep hook or the `/autoimprove run` completion flow.
+- **All docs show "no changes needed" despite major changes:** This happens when the diff was from a merge commit or a branch that doesn't touch doc-relevant paths. Confirm the diff range with `git diff <from>..<to> --stat` before running the skill.
+
+---
+
 # Constraints
 
 - **Diff-only**: NEVER read full source files. The git diff is the only input to subagents.
@@ -204,3 +213,17 @@ Commit: <SHA> — "docs: update after HEAD~1 HEAD"
 - **Minimal reads**: Only read doc files that need updating. Never inventory the whole repo.
 - **No --all flag**: Full regeneration is intentionally unsupported — it's a token trap.
 - **Scale checks only on add/delete**: Don't count artifacts unless the diff added or removed a file.
+
+---
+
+# Notes
+
+- This skill is designed for the post-commit hook: `git commit` → autoimprove detects it → docs-regenerate runs automatically. If the hook is not wired, run the skill manually after each milestone.
+- The diff-only constraint exists to prevent context flooding. A single source file diff is usually under 100 lines; the corresponding doc patch is under 50. Reading full source files for a doc update is a 10x token waste with no quality benefit.
+- When multiple skills or commands change in one commit, each subagent handles one doc file — they work in parallel where possible.
+- If `docs/` does not yet exist, the skill creates it with `mkdir -p docs` before writing. This is safe on first use.
+- The skill is stateless — it does not track which docs it has previously updated. Every run is based solely on the provided diff range.
+- For large refactors that touch many files, pass a focused diff range (e.g., `--from feature-branch --to HEAD`) rather than defaulting to `HEAD~1 HEAD` to avoid processing an overwhelming change set.
+- The skill never deletes doc sections — it only patches or appends. Removing stale documentation must be done manually.
+- Skills, commands, and agents all map to distinct doc sections. The mapping is determined by file path prefix (`skills/`, `commands/`, `agents/`).
+- If `docs/skills.md` does not have a section for a skill yet, the subagent creates it rather than skipping the update.

@@ -247,8 +247,27 @@ Note: Proposal #3 found in 2 files — using most recent (proposals-2026-03-25.m
 
 ---
 
+# 11. Common Failure Patterns
+
+- **`proposals-decisions.json` rejected proposal prevents approval of a dependent:** The DAG enforcement in `approve` blocks proposals whose dependencies are rejected. If you want to approve a downstream proposal anyway, first un-reject the dependency (re-approve it) before approving the downstream one.
+- **Proposal file exists but is not listed by `list`:** The file may not match the `experiments/proposals-*.md` glob pattern. Files with a non-standard prefix (e.g., `proposals_2026-03-01.md`) are silently skipped. Rename to match the expected pattern.
+- **`proposals-decisions.json` is corrupted:** If the file contains invalid JSON (e.g., from a partial write), the skill prints an error and stops. Do NOT attempt to auto-repair it — open it in an editor, fix the JSON, and re-run.
+- **All proposals are deferred and the run skill keeps generating new ones:** Deferred proposals accumulate without being resolved. Review them with `list` and either approve, reject, or update the deferral condition — otherwise the proposer will keep generating overlapping proposals.
+
+---
+
 # 10. Integration Notes
 
 - **Phase 2 lifecycle**: stagnation detected by `run` → proposer agent writes `experiments/proposals-*.md` → human reviews via this skill → approved proposals are loaded by next `run` session.
 - **Blocking graph**: proposals may declare dependencies on each other via the `Blocking:` field. The `approve` subcommand enforces this DAG — resolve dependencies bottom-up.
 - **Deferred vs. rejected**: defer when the proposal is valid but the timing is wrong (e.g., blocked by in-flight work). Reject when the proposal direction is wrong or too risky. The `run` skill skips both deferred and rejected proposals.
+- **Approved proposals auto-expire**: if an approved proposal is not executed within `budget.max_experiments_per_session` sessions, it is treated as deferred. This prevents stale proposals from blocking future Phase 2 cycles.
+- **`/autoimprove run --phase propose`**: Forces the proposer agent to run immediately, even if the stagnation window has not been reached. Use this when you want to manually trigger Phase 2 planning.
+
+---
+
+# Notes
+
+- The `proposals` skill is the human-in-the-loop gate for Phase 2. Phase 1 (grind loop) is fully automated; Phase 2 only proceeds on human approval via this skill.
+- Proposal files in `experiments/` are never modified by this skill — they are read-only. The decisions are stored separately in `proposals-decisions.json`.
+- Each proposal file contains the proposer agent's reasoning, suggested scope, and expected metric impact. Read the full file (not just the title) before approving large-scope proposals.
