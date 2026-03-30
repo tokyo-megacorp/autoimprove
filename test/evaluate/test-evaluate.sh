@@ -3659,5 +3659,161 @@ rm -f "$tail_config"
 
 
 echo ""
+echo "=== Benchmark Non-Zero Exit with Output Tests ==="
+
+# Test: benchmark command exits non-zero but still emits valid JSON to stdout → metric IS extracted
+# evaluate.sh uses set+e / set-e guard around bench_cmd: the exit code is ignored for benchmarks.
+# The output captured in bench_output is whatever the command wrote to stdout, regardless of exit code.
+# This is different from the "exit 1 no output" case — here the benchmark fails AND produces metrics.
+echo "--- Test: benchmark exits non-zero with valid output → metric extracted in init mode ---"
+fail_output_init_config=$(mktemp)
+cat > "$fail_output_init_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "partial-fail-bench",
+      "command": "sh -c 'printf \"{\\\\\"score\\\\\": 77}\"; exit 1'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$fail_output_init_config" /dev/null 2>/dev/null)
+assert_json_field "fail-output-init: mode is init (gates passed)" "$result" '.mode' 'init'
+assert_json_field "fail-output-init: score extracted despite non-zero exit" "$result" '.metrics.score' '77'
+assert_json_field "fail-output-init: score is number type" "$result" '.metrics.score | type' 'number'
+rm -f "$fail_output_init_config"
+
+# Test: benchmark exits non-zero but produces valid output in compare mode → scoring occurs normally
+# The metric value extracted from the failing benchmark is used for comparison just like any other.
+# This verifies that benchmark exit code has no bearing on scoring — only the output content matters.
+echo "--- Test: benchmark exits non-zero with valid output → scoring occurs normally in compare mode ---"
+fail_output_compare_config=$(mktemp)
+cat > "$fail_output_compare_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "partial-fail-compare-bench",
+      "command": "sh -c 'printf \"{\\\\\"throughput\\\\\": 110}\"; exit 2'",
+      "metrics": [
+        {
+          "name": "throughput",
+          "extract": "json:.throughput",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+fail_output_compare_baseline=$(mktemp)
+echo '{"metrics":{"throughput":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$fail_output_compare_baseline"
+result=$("$EVALUATE" "$fail_output_compare_config" "$fail_output_compare_baseline" 2>/dev/null)
+# throughput 100→110 (+10%) → improved → keep (exit code of benchmark is irrelevant)
+assert_json_field "fail-output-compare: verdict is keep (non-zero exit ignored for scoring)" "$result" '.verdict' 'keep'
+assert_json_field "fail-output-compare: throughput in improved" "$result" '.improved | contains(["throughput"])' 'true'
+assert_json_field "fail-output-compare: no regressions (exit code irrelevant)" "$result" '.regressed | length' '0'
+assert_json_field "fail-output-compare: candidate is 110 (from failing benchmark output)" "$result" '.metrics.throughput.candidate' '110'
+rm -f "$fail_output_compare_config" "$fail_output_compare_baseline"
+
+# Test: shell extractor returning literal string "null" → metric is silently skipped
+# run_benchmarks checks: if [ -n "$raw_value" ] && [ "$raw_value" != "null" ]
+# A shell extractor that outputs the literal word "null" (not empty) hits the != "null" guard and is skipped.
+# This is distinct from: (a) empty output (fails -n check), (b) json:. returning null (jq -r emits "null" string).
+echo "--- Test: shell extractor returning literal 'null' string → metric silently skipped ---"
+null_extractor_config=$(mktemp)
+cat > "$null_extractor_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "null-string-bench",
+      "command": "echo 'result: null'",
+      "metrics": [
+        {
+          "name": "val",
+          "extract": "grep -oE 'null'",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$null_extractor_config" /dev/null 2>/dev/null)
+assert_json_field "null-extractor: mode is init (gates passed)" "$result" '.mode' 'init'
+assert_json_field "null-extractor: metrics is empty (null string skipped)" "$result" '.metrics | length' '0'
+# 'val' must not appear in metrics — not stored as the string "null" or as null JSON
+null_in_metrics=$(echo "$result" | jq '.metrics | has("val")')
+assert_eq "null-extractor: val absent from metrics (not stored as null string)" "false" "$null_in_metrics"
+rm -f "$null_extractor_config"
+
+# Test: json:. extractor returning null (absent key) is also skipped in compare mode
+# When `jq -r` is given a key that doesn't exist, it returns the string "null".
+# The [ "$raw_value" != "null" ] guard skips it → metric not extracted → not regressed.
+echo "--- Test: json: extractor returning 'null' string for absent key → metric skipped in compare mode ---"
+json_null_config=$(mktemp)
+cat > "$json_null_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "json-null-bench",
+      "command": "echo '{\"existing\": 50}'",
+      "metrics": [
+        {
+          "name": "existing",
+          "extract": "json:.existing",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        },
+        {
+          "name": "ghost",
+          "extract": "json:.ghost_key",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+json_null_baseline=$(mktemp)
+# baseline has both keys; candidate output only has "existing" — "ghost" returns null from jq
+echo '{"metrics":{"existing":40,"ghost":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$json_null_baseline"
+result=$("$EVALUATE" "$json_null_config" "$json_null_baseline" 2>/dev/null)
+# existing: 40→50 (+25%) → improved; ghost: jq returns "null" → skipped (not regressed even with baseline=100)
+assert_json_field "json-null: verdict is keep (existing improved, ghost skipped)" "$result" '.verdict' 'keep'
+assert_json_field "json-null: existing in improved" "$result" '.improved | contains(["existing"])' 'true'
+assert_json_field "json-null: ghost NOT in regressed (skipped by null guard)" "$result" '.regressed | contains(["ghost"])' 'false'
+assert_json_field "json-null: ghost NOT in improved (skipped)" "$result" '.improved | contains(["ghost"])' 'false'
+assert_json_field "json-null: ghost absent from .metrics (not scored)" "$result" '.metrics | has("ghost")' 'false'
+rm -f "$json_null_config" "$json_null_baseline"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
