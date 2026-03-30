@@ -73,20 +73,29 @@ for pat in patterns:
 PYEOF
 }
 
+# candidate_files — emit focus files if configured, else fall back to find commands.
+# Usage: candidate_files [find_cmd...]
+# Any additional arguments are passed as separate find commands (eval'd).
+candidate_files() {
+  if [ -n "$FOCUS_FILES" ]; then
+    echo "$FOCUS_FILES"
+  else
+    for find_cmd in "$@"; do
+      eval "$find_cmd" 2>/dev/null
+    done
+  fi
+}
+
 FOCUS_FILES=$(get_focus_files "$THEME" "$PROJECT_ROOT")
 
 case "$THEME" in
   test_coverage)
     # Find source shell scripts with no corresponding test file
-    {
-      if [ -n "$FOCUS_FILES" ]; then
-        # From focus_paths: use .sh files outside test/ as source candidates
-        echo "$FOCUS_FILES" | grep '\.sh$' | grep -v '/test/' || true
-      else
-        find "$PROJECT_ROOT/scripts" -name "*.sh" 2>/dev/null
-        find "$PROJECT_ROOT/skills" -name "*.sh" 2>/dev/null
-      fi
-    } | while read -r f; do
+    candidate_files \
+      "find \"$PROJECT_ROOT/scripts\" -name '*.sh'" \
+      "find \"$PROJECT_ROOT/skills\" -name '*.sh'" \
+    | grep '\.sh$' | grep -v '/test/' \
+    | while read -r f; do
       [ -z "$f" ] && continue
       basename=$(basename "$f" .sh)
       if ! find "$PROJECT_ROOT/test" -name "*${basename}*" 2>/dev/null | grep -q .; then
@@ -97,13 +106,8 @@ case "$THEME" in
 
   skill_quality)
     # Find SKILL.md files that are short (less thorough)
-    {
-      if [ -n "$FOCUS_FILES" ]; then
-        echo "$FOCUS_FILES"
-      else
-        find "$PROJECT_ROOT/skills" -name "SKILL.md" 2>/dev/null
-      fi
-    } | while read -r f; do
+    candidate_files "find \"$PROJECT_ROOT/skills\" -name 'SKILL.md'" \
+    | while read -r f; do
       [ -z "$f" ] && continue
       lines=$(wc -l < "$f" | tr -d ' ')
       if [ "$lines" -lt 50 ]; then
@@ -114,13 +118,8 @@ case "$THEME" in
 
   agent_prompts)
     # Find agent markdown files missing key structural sections
-    {
-      if [ -n "$FOCUS_FILES" ]; then
-        echo "$FOCUS_FILES"
-      else
-        find "$PROJECT_ROOT/agents" -name "*.md" 2>/dev/null
-      fi
-    } | while read -r f; do
+    candidate_files "find \"$PROJECT_ROOT/agents\" -name '*.md'" \
+    | while read -r f; do
       [ -z "$f" ] && continue
       missing=""
       grep -qi "when to use\|description:" "$f" || missing="${missing}description,"
@@ -133,13 +132,8 @@ case "$THEME" in
 
   command_docs)
     # Find command docs that are very short
-    {
-      if [ -n "$FOCUS_FILES" ]; then
-        echo "$FOCUS_FILES"
-      else
-        find "$PROJECT_ROOT/commands" -name "*.md" 2>/dev/null
-      fi
-    } | while read -r f; do
+    candidate_files "find \"$PROJECT_ROOT/commands\" -name '*.md'" \
+    | while read -r f; do
       [ -z "$f" ] && continue
       lines=$(wc -l < "$f" | tr -d ' ')
       if [ "$lines" -lt 20 ]; then
@@ -150,13 +144,8 @@ case "$THEME" in
 
   refactoring)
     # Find files for refactoring from focus_paths or default to scripts/
-    {
-      if [ -n "$FOCUS_FILES" ]; then
-        echo "$FOCUS_FILES"
-      else
-        find "$PROJECT_ROOT/scripts" -name "*.sh" 2>/dev/null
-      fi
-    } | while read -r f; do
+    candidate_files "find \"$PROJECT_ROOT/scripts\" -name '*.sh'" \
+    | while read -r f; do
       [ -z "$f" ] && continue
       printf '{"path":"%s","reason":"candidate for refactoring"}\n' "$f"
     done

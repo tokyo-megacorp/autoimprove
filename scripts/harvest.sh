@@ -45,13 +45,8 @@ if [[ -z "$BASELINE_FILE" ]]; then
   exit 1
 fi
 
-# Calculate cutoff date
-if command -v gdate >/dev/null 2>&1; then
-  # [F7 FIX] Add 2>/dev/null to fallback branch to suppress error on wrong OS
-  CUTOFF=$(gdate -u -d "$WINDOW_DAYS days ago" +%Y-%m-%d 2>/dev/null || date -u -v-${WINDOW_DAYS}d +%Y-%m-%d 2>/dev/null)
-else
-  CUTOFF=$(date -u -v-${WINDOW_DAYS}d +%Y-%m-%d 2>/dev/null || date -u -d "$WINDOW_DAYS days ago" +%Y-%m-%d 2>/dev/null)
-fi
+# Calculate cutoff date — python3 handles cross-platform (macOS/Linux) cleanly
+CUTOFF=$(python3 -c "import datetime; print((datetime.datetime.utcnow() - datetime.timedelta(days=$WINDOW_DAYS)).strftime('%Y-%m-%d'))")
 
 # Collect all JSONL files within window
 COMBINED=$(mktemp)
@@ -198,15 +193,7 @@ if [[ -f "$BASELINE_FILE" ]]; then
 fi
 
 # [F14 FIX] Separate new_source entries from real anomalies
-NEW_SOURCES=$(echo "$ANOMALIES" | jq '[.[] | select(.type == "new_source")]')
-ANOMALIES=$(echo "$ANOMALIES" | jq '[.[] | select(.type != "new_source")] | sort_by(
-  if .severity == "critical" then 0
-  elif .severity == "high" then 1
-  elif .severity == "medium" then 2
-  else 3 end
-)')
-
-# [F19 FIX] Stage 4 — Map anomalies to autoimprove themes via source→theme mapping
+# [F19 FIX] Map anomalies to autoimprove themes via source→theme mapping
 # Reads source_theme_map from autoimprove.yaml if yq is available; else uses prefix defaults
 AUTOIMPROVE_YAML="${AUTOIMPROVE_YAML:-$HOME/Developer/autoimprove/autoimprove.yaml}"
 if [ -f "$AUTOIMPROVE_YAML" ] && command -v yq >/dev/null 2>&1; then
@@ -220,12 +207,25 @@ else
     {"pattern":"agent:","theme":"agent-efficiency"}
   ]'
 fi
-ANOMALIES=$(echo "$ANOMALIES" | jq --argjson map "$THEME_MAP" '
-  [.[] | . as $a |
-    ($map | [.[] | . as $entry | select($a.source | startswith($entry.pattern))] | first // null) as $match |
-    if $match then . + {suggested_theme: $match.theme} else . end
-  ]
-')
+
+# Separate, sort by severity, and apply theme map — single jq call, two outputs
+_ANOMALY_PARTS=$(echo "$ANOMALIES" | jq -c --argjson map "$THEME_MAP" '[
+  (map(select(.type == "new_source")) | tojson),
+  (
+    map(select(.type != "new_source"))
+    | sort_by(if .severity == "critical" then 0
+              elif .severity == "high"   then 1
+              elif .severity == "medium" then 2
+              else 3 end)
+    | [.[] | . as $a |
+        ($map | [.[] | select($a.source | startswith(.pattern))] | first) as $match |
+        if $match then . + {suggested_theme: $match.theme} else . end
+      ]
+    | tojson
+  )
+]')
+NEW_SOURCES=$(echo "$_ANOMALY_PARTS" | jq -r '.[0]')
+ANOMALIES=$(echo "$_ANOMALY_PARTS" | jq -r '.[1]')
 
 # Write output
 jq -n \
