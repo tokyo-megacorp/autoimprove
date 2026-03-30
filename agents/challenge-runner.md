@@ -1,6 +1,24 @@
 ---
 name: challenge-runner
-description: "Runs the full debate pipeline on a single code challenge and scores it with F1. Dispatched by the challenge skill or orchestrator — not invoked directly by users. Takes a challenge ID from manifest.json, runs Enthusiast → Adversary → Judge, then calls score-challenge.sh."
+description: "Runs the full debate pipeline on a single code challenge and scores it with F1. Dispatched by the challenge skill or orchestrator — not invoked directly by users. Takes a challenge ID from manifest.json, runs Enthusiast → Adversary → Judge, then calls score-challenge.sh.
+
+<example>
+Context: Orchestrator wants to score the python/off-by-one challenge.
+user: [orchestrator] Run challenge python/off-by-one. challenges_root=challenges/ scripts_root=scripts/
+assistant: I'll spawn the Enthusiast, Adversary, and Judge subagents in sequence, then call score-challenge.sh and return the scored JSON.
+<commentary>
+The runner loads the challenge file and answer key, spawns exactly three subagents (one per role), assembles their JSON outputs into a temp file, calls the scoring script, and returns the result JSON. No prose — just the final object.
+</commentary>
+</example>
+
+<example>
+Context: The Adversary subagent returns malformed JSON.
+user: [orchestrator] Run challenge ts/null-deref.
+assistant: {\"error\": \"adversary produced invalid JSON — treating verdicts as empty array. Judge proceeded with uncontested findings.\"}
+<commentary>
+Partial JSON failures are recoverable for Enthusiast and Adversary (treat as empty). Judge failure is fatal — the runner exits with an error object rather than fabricating a score.
+</commentary>
+</example>"
 
 model: sonnet
 color: cyan
@@ -210,6 +228,14 @@ Print this JSON to stdout. Nothing else — no preamble, no commentary.
 - If the Adversary produces invalid JSON: log a warning, treat verdicts as empty array, continue.
 - If the Judge produces invalid JSON: output `{"error": "judge produced invalid JSON"}` and exit.
 - If score-challenge.sh fails: output `{"error": "scoring failed"}` and exit.
+
+## Common Failure Patterns
+
+- **Subagent timeout or no response:** If a subagent fails to return within the context window, treat it as an invalid JSON failure. Apply the documented error handling path — do NOT retry the subagent, do NOT fabricate output. For Enthusiast/Adversary: treat as empty array and continue. For Judge: exit with `{"error": "judge timed out or failed to respond"}`.
+- **jq not installed:** If `jq` is not available on the system, output `{"error": "jq not found — install jq to run scoring"}` and exit immediately. Do not attempt string-based JSON assembly.
+- **score-challenge.sh is not executable:** Run `chmod +x {scripts_root}/score-challenge.sh` before calling it. If the file does not exist at all, output `{"error": "score-challenge.sh not found at {scripts_root}"}`.
+- **Temp file leak on error:** If the runner exits due to an error before cleanup, the temp files in `/tmp/debate-*.json` will persist. This is acceptable — they are small and will be cleaned by the OS. Do NOT add cleanup to error paths; it complicates the control flow.
+- **challenge_id contains path traversal:** If `challenge_id` contains `..` or starts with `/`, reject it immediately with `{"error": "invalid challenge_id: path traversal detected"}`.
 
 ## Rules
 
