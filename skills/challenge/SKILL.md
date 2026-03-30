@@ -162,6 +162,15 @@ Runs every challenge regardless of suite tag. Expect a longer wall time. Use thi
 
 ---
 
+# Common Failure Patterns
+
+- **F1 score drops suddenly across all challenges:** Indicates a structural change to the debate pipeline's JSON output — not a regression in agent quality. Check if `adversarial-review` recently changed its output schema and update `score-challenge.sh` to match before interpreting scores.
+- **One language consistently scores near zero while others are normal:** The challenge files for that language may have drifted from the manifest (`challenges/manifest.json`). Run `cat challenges/manifest.json | jq '.[] | select(.language=="<lang>")'` to verify each challenge file still exists at the listed path.
+- **Score improves on retries without code changes:** Debate pipelines have inherent non-determinism. Run each challenge 2-3 times and average before concluding anything. A single-run score difference of ±0.1 F1 is within normal variance.
+- **`score-challenge.sh` exits non-zero with "jq: command not found":** `jq` is a required dependency. Install it with `brew install jq` and retry.
+
+---
+
 # Edge Cases and Pitfalls
 
 - **Missing `challenges/manifest.json`**: The skill cannot run without it. If the file is absent, print a clear error and stop. Do not attempt to reconstruct the manifest from the directory structure.
@@ -186,3 +195,7 @@ Runs every challenge regardless of suite tag. Expect a longer wall time. Use thi
 - **Do not use** to write or modify test suites — this skill only runs existing challenges against agents. Use prompt-testing for that.
 - **Do not use** as a substitute for CI — challenge is an interactive diagnostic tool, not a regression gate. Wire CI to the test script directly.
 - **Do not use** when the debate pipeline is in mid-refactor — a structural change to agent output format will produce meaningless F1 scores until score-challenge.sh is updated to match.
+- **Do not use** to measure improvements from a single experimenter run — challenge is a macro benchmark. Use it to measure deliberate agent prompt changes, not to evaluate individual autoimprove experiments.
+- **Do not use** as a replacement for the evaluate gate — the evaluate gate checks the autoimprove pipeline's correctness; challenge measures agent accuracy on pre-seeded bugs. They measure different things.
+- **Do not use** for regression testing during normal autoimprove sessions — it consumes significant tokens (one full debate pipeline per challenge). Reserve challenge runs for before/after comparisons on major agent prompt changes.
+- **Do not use** as the sole signal for agent quality — F1 measures finding accuracy on synthetic bugs, not real-world code improvement quality. Use challenge alongside human review of kept experiments.

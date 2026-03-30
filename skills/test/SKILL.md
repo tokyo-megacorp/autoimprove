@@ -188,8 +188,32 @@ Re-run manually: bash test/challenge/test-integration.sh
 
 ---
 
+# 10. Common Failure Patterns
+
+- **All suites pass but gate fails during `/autoimprove run`:** The gate command in `autoimprove.yaml` may call a different script path than the one this skill runs. Check the `gates` config to ensure the gate command matches `test/evaluate/test-evaluate.sh`.
+- **Test count drops unexpectedly after an experimenter commit:** An experimenter may have accidentally modified a test file despite the `additive_only` constraint. Run `git diff HEAD~1 -- test/` to verify. If tests were removed, roll back the experiment with `/autoimprove rollback`.
+- **Suite output is empty but exit code is 0:** The test script may be using `set -e` with a subshell that swallowed an error. Run the script manually with `bash -x test/evaluate/test-evaluate.sh` to trace execution.
+- **`harvest` suite not found:** The harvest test suite is not yet implemented in all project setups. This is expected — use `/autoimprove test evaluate` or `/autoimprove test challenge` until the harvest suite is scaffolded.
+
+---
+
 # 9. Integration Notes
 
 - **Before `/autoimprove run`** — the `run` skill's hard gates call these same scripts. A passing `test` run confirms the baseline is clean before the experiment loop starts.
 - **After a KEEP verdict** — re-run `test` to catch regressions the experimenter introduced that gates did not catch (gate commands are configurable and may be narrower than these suites).
 - **CI hook** — add `bash test/challenge/test-score-challenge.sh && bash test/evaluate/test-evaluate.sh` as a pre-push hook to keep the scorer and evaluator in sync.
+- **After modifying `scripts/evaluate.sh`** — re-run `test evaluate` immediately. The evaluate test suite validates the evaluator's own logic; changes to `evaluate.sh` can silently break the scoring pipeline.
+- **After updating `autoimprove.yaml` gates** — a gate change may cause experiments to fail that previously passed. Run `test evaluate` to confirm the gate command works as expected before the next run.
+- **After adding new challenges** — run `test challenge` after adding entries to `challenges/manifest.json` to verify the new challenge files are reachable and parseable.
+
+---
+
+# 11. Recommended Test Workflow
+
+Use this sequence when debugging a test regression:
+
+1. **Run all suites** — `/autoimprove test all` — confirm which suite is failing
+2. **Run the failing suite manually** — `bash test/<suite>/test-<suite>.sh` — get unfiltered output
+3. **Isolate the failing test** — look for `--- Test: <name> ---` markers around the failure
+4. **Check the gate command** in `autoimprove.yaml` — confirm it calls the same script
+5. **Re-run after fix** — confirm the suite passes before the next `/autoimprove run`

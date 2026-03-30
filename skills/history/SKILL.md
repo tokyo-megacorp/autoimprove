@@ -207,8 +207,25 @@ Shows the 5 most recent kept experiments for `failing_tests`. Use this to unders
 
 ---
 
+# Common Failure Patterns
+
+- **`--since` date returns no results despite recent experiments:** The date format must be `YYYY-MM-DD`. A format like `03-29-2026` or `March 29` will not parse correctly and the filter will silently return nothing.
+- **`--theme` filter returns experiments from an unrelated theme:** Theme names are substring-matched. Use the full theme name (e.g., `--theme failing_tests`, not `--theme test`) to avoid cross-contamination.
+- **Malformed row count increases after experimenter commits:** Commit messages with embedded tab characters break the TSV format. Prefer commit messages without tabs. If a row is malformed, the experiment is still recorded but cannot be queried by verdict or theme — fix the commit message format for future experiments.
+
+---
+
 # When NOT to Use
 
 - **Do not use** to see metric-level benchmark scores — use the report skill for that.
 - **Do not use** to modify or clean up the log — the TSV is append-only and must not be edited. If you need to annotate an experiment, use LCM with a reference to the experiment ID.
 - **Do not use** to start or resume a session — that is the run skill's job.
+- **Do not use** as a substitute for `/autoimprove diff <exp-id>` when you need to see what code changed — history shows metadata (theme, verdict, commit message); diff shows the actual code diff.
+- **Do not use** to retrieve experiment context files — those are in `experiments/<id>/context.json` and are read directly, not via this skill.
+
+---
+
+# Notes
+
+- Experiment IDs in the TSV are sequential integers, not git SHAs. The `/diff` and `/rollback` skills accept these IDs and resolve them to commit SHAs internally.
+- The history skill is read-only and stateless — it never modifies `experiments.tsv` or any state file.
