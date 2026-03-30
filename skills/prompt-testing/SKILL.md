@@ -20,7 +20,9 @@ assistant: I'll use the prompt-testing skill to scaffold the test suite.
 <commentary>Plugin test scaffolding — prompt-testing.</commentary>
 </example>
 
-Do NOT use for testing regular code — only for plugin components."
+Do NOT use for testing regular code — only for plugin components. Do NOT use to run tests (use the test skill)."
+argument-hint: "[<skill-name>|<agent-name>] [--type unit|agent|triggering|explicit|integration]"
+allowed-tools: [Read, Write, Bash, Glob, Grep]
 ---
 
 # Prompt Testing
@@ -282,3 +284,53 @@ These are production tests for this plugin — read them as working reference:
 Shared helpers:
 - `tests/agents/test-helpers.sh` — `run_as_agent()`, `extract_json()`, `assert_json_*`
 - `tests/skills/test-helpers.sh` — `run_with_plugin()`, `assert_skill_triggered()`, `assert_no_premature_work()`
+
+---
+
+## Debugging Failing Tests
+
+### Triggering test fails: skill never fires
+
+1. **Confirm the skill is loaded.** Dump all skills that fired during the test run:
+   ```bash
+   grep -o '"skill":"[^"]*"' "$LOG" | sort -u
+   ```
+   If the list is empty, the plugin directory is wrong or the skill has a syntax error in its frontmatter.
+
+2. **Check the plugin is visible.** Run `claude --list-skills --plugin-dir "$PLUGIN_DIR"` to confirm the skill appears. If it doesn't, the `.claude-plugin/plugin.json` or the SKILL.md frontmatter is malformed.
+
+3. **Check the description trigger text.** The skill fires based on its `description:` field in SKILL.md frontmatter. If the test prompt doesn't match the description's trigger examples, the LLM won't route to it. Add a trigger phrase that matches the test prompt.
+
+4. **Try with a stronger model.** Haiku may not route correctly for ambiguous triggers. Run once with `TEST_MODEL=sonnet` to confirm the routing logic works before debugging the description.
+
+5. **Inspect the full JSONL log.** The stream-json log captures every LLM decision — look for the assistant message before the failed Skill call to see what it reasoned:
+   ```bash
+   grep '"type":"assistant"' "$LOG" | head -3 | jq -r '.message.content[0].text // empty'
+   ```
+
+### Agent test fails: JSON assertion mismatch
+
+1. **Print the raw output** before asserting:
+   ```bash
+   echo "RAW: $output"
+   ```
+   The most common cause is the agent produced a non-JSON preamble ("Sure, here is my verdict:") before the JSON block. Use `extract_json` from `test-helpers.sh` to strip it.
+
+2. **Check frontmatter stripping.** `run_as_agent` strips YAML frontmatter with awk. If the agent file uses `---` inside the body (e.g., a markdown separator), awk may strip too much. Inspect what the helper actually sends as the system prompt.
+
+3. **Verify the scenario is valid.** Agent tests inject a scenario as the user message. If the scenario is under-specified, the agent may produce valid JSON with different field values than expected. Make the scenario concrete enough to force a deterministic output.
+
+### Test passes locally but fails in CI
+
+- **Missing env vars.** `TEST_MODEL`, `PLUGIN_DIR`, and `ANTHROPIC_API_KEY` must be set. CI may not inherit your shell's env.
+- **macOS vs Linux.** `grep -E` behavior and `awk` field separators differ. Test on both if possible; prefer POSIX constructs.
+- **Flaky haiku routing.** Haiku's skill dispatch can be non-deterministic on borderline prompts. If a test is <80% reliable, either strengthen the trigger description or move the test to sonnet.
+
+---
+
+## When NOT to Use This Skill
+
+- **Running tests** — use the `/autoimprove test` skill to execute existing test suites
+- **Testing business logic, utilities, or regular application code** — this skill covers plugin components (skills, agents, commands) only; use your project's standard test framework for everything else
+- **Benchmarking output quality** — the challenge skill measures agent accuracy with F1 scoring; prompt-testing checks behavioral correctness, not metric performance
+- **Debugging a failing skill at runtime** — check `autoimprove status` and `autoimprove report` first; prompt-testing is for writing new tests, not diagnosing live session issues
