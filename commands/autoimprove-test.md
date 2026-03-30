@@ -6,15 +6,55 @@ argument-hint: "[challenge|integration|evaluate|all]"
 
 Run the autoimprove test suites. Arguments: $ARGUMENTS
 
-If no argument or "all", run all three suites:
-```bash
-bash test/challenge/test-score-challenge.sh
-bash test/challenge/test-integration.sh
-bash test/evaluate/test-evaluate.sh
+## Arguments
+
+| Argument | Suite run | Script |
+|----------|-----------|--------|
+| (none) or `all` | All three suites | All scripts below |
+| `challenge` | Scoring unit tests | `test/challenge/test-score-challenge.sh` |
+| `integration` | Challenge integration tests | `test/challenge/test-integration.sh` |
+| `evaluate` | Evaluate pipeline tests | `test/evaluate/test-evaluate.sh` |
+
+## Usage Examples
+
+```
+# Run every suite (safest before a commit)
+/autoimprove test
+
+# Quick smoke-check on scoring logic only
+/autoimprove test challenge
+
+# Verify the integration harness after changing scripts/evaluate.sh
+/autoimprove test integration
+
+# Run only the evaluate pipeline tests
+/autoimprove test evaluate
 ```
 
-If argument is "challenge", run only `test/challenge/test-score-challenge.sh`.
-If argument is "integration", run only `test/challenge/test-integration.sh`.
-If argument is "evaluate", run only `test/evaluate/test-evaluate.sh`.
+## What It Does
 
-Report total pass/fail counts across all suites run.
+Runs the requested shell test scripts and collects pass/fail counts per suite.
+
+- **challenge** — unit-tests the scoring functions in `scripts/evaluate.sh`: metric parsing, delta calculations, gate thresholds, tier transitions, and edge cases (empty output, missing keys).
+- **integration** — end-to-end run of the full challenge pipeline in a temporary worktree: baseline capture → experimenter agent → evaluate → verdict. Verifies that kept experiments actually improve metrics and that regressions are discarded.
+- **evaluate** — unit-tests `scripts/evaluate.sh` directly: baseline structure, within-tolerance regression detection, missing-file handling, and output JSON schema.
+
+After all suites finish, reports a combined summary:
+
+```
+Results: 34 passed, 0 failed (challenge: 12, integration: 10, evaluate: 12)
+```
+
+If any test fails, the failing test name and the diff between expected and actual output are shown.
+
+## When to Use
+
+- Before opening a PR that touches `scripts/evaluate.sh`, `autoimprove.yaml` schema, or the experiment loop.
+- After rebasing to catch breakage introduced by upstream changes.
+- When an experiment produces an unexpected verdict — run `challenge` to verify the scoring logic is correct.
+
+## Related Commands
+
+- `/autoimprove run` — run the experiment loop whose logic these tests cover
+- `/autoimprove init` — scaffold `autoimprove.yaml` before the first run
+- `/prompt-testing` — write triggering and unit tests for skills and agents
