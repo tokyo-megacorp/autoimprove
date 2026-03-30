@@ -163,6 +163,16 @@ The `EPOCH DRIFT ALERT` flag appears when any metric's drift exceeds the `epoch_
 
 ---
 
+# Common Failure Patterns
+
+- **Drift percentages all show `0.0%`:** The `epoch-baseline.json` was not written at session start (common after a crash or `--resume`). Without an epoch baseline, drift is undefined — the skill notes this explicitly rather than showing misleading zeroes.
+- **"kept" count is non-zero but no experiments appear under Kept Experiments:** The session_id grouping may be off if the TSV was manually edited. Check that all rows intended for the "most recent session" share the same `session_id` value.
+- **Stagnated Themes section is empty but experiments keep returning neutral:** Check `autoimprove.yaml`'s `stagnation_window` — if it's set to a large value (e.g., 10), the theme won't appear as stagnated until many consecutive non-improvements. The report reflects the state in `state.json`, which only triggers stagnation after the configured window.
+- **Epoch drift alert fires immediately after the first run:** This is expected when the very first experiment improves a metric by more than 5%. The threshold is absolute from epoch-baseline — if you start from a poor baseline, early wins can look like "alert-level" improvements.
+- **Report shows prior-session experiments as current:** If two sessions ran without writing a fresh `epoch-baseline.json`, all TSV rows may appear in the "most recent session" bucket. Run `/autoimprove run` fresh (not `--resume`) to anchor a new epoch.
+
+---
+
 # Integration Points
 
 - **`/status`** — The live complement to `/report`. Use `/status` to see what's *currently running* (active worktrees, cooldowns); use `/report` to see what *already happened* (kept experiments, metric trends).
@@ -178,3 +188,13 @@ The `EPOCH DRIFT ALERT` flag appears when any metric's drift exceeds the `epoch_
 - To see the *current* session state (active agents, theme queue) → use `/status`
 - To browse per-commit diffs → use `/history`
 - To start or continue a session → use `/run`
+- To inspect *what code changed* in a specific experiment → use `/diff <exp-id>`
+- To review design-level decisions (why we chose approach X) → use `/decisions`
+
+---
+
+# Notes
+
+- The report is a *snapshot* — it reads state files as they exist now. If the session was interrupted, report reflects whatever was last flushed to disk.
+- "Epoch drift" is relative to the baseline frozen at session start, not the project's all-time history. A +10% epoch drift means 10% improvement within this session, not from the project's inception.
+- Verdict counts (kept/neutral/regressed) are per-experiment, not per-metric. An experiment that improves one metric and is neutral on all others still counts as "kept".

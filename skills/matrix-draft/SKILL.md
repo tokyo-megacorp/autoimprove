@@ -144,6 +144,16 @@ All options are feasible — ready to run the matrix.
 
 ---
 
+# Common Failure Patterns
+
+- **User rejects all generated options:** Usually means the options aren't actually distinct — they feel like variations of the same thing. Go back to Step 2 and apply the differentiation test more aggressively. Ask: "If all three options cost the same and had the same complexity, which would you still prefer? That preference reveals the real axis of difference."
+- **More than 2 rounds of clarification needed:** The problem is too large to frame in one matrix. Tell the user: "This might be two separate decisions — [X] and [Y]. Which one do you want to run first?" Avoid letting the problem creep grow before the matrix runs.
+- **User has already decided and is fishing for validation:** Recognize the pattern: "Can we do option A?" means they want A. Don't surface alternatives they'll reject. Instead, offer `/challenge` to pressure-test A before committing — this is more useful than a matrix where A wins trivially.
+- **All options blocked in feasibility check:** The constraint in the problem statement is too restrictive. Ask the user which constraint is fixed vs. assumed. Often one "constraint" can be relaxed.
+- **Options bleed into each other after haiku scoring:** This usually means the labels were too vague in the ready-to-paste block. Reframe each option as a *bet*: "A bets on X, B bets on Y." Bets are mutually exclusive by nature.
+
+---
+
 # Integration Points
 
 - **`/idea-matrix`** — This skill feeds directly into it. The ready-to-paste block is exactly what `/idea-matrix` expects as input. After outputting the block, tell the user: "Run `/idea-matrix` with the block above."
@@ -158,3 +168,4 @@ All options are feasible — ready to run the matrix.
 - When options are already crisp and the user just wants scores → go directly to `/idea-matrix`
 - When the decision has already been made and the user wants to save it → use `/idea-archive`
 - When reviewing past decisions, not making a new one → use `/decisions`
+- When the user needs to understand trade-offs on an already-chosen path → use `/challenge`

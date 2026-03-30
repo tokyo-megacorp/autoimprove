@@ -132,8 +132,19 @@ The skill filters for a keyword like "jwt" or "session" and surfaces the YAML fr
 
 ---
 
+# Common Failure Patterns
+
+- **Keyword too specific, returns nothing:** Try the root concept instead of the exact phrase. `decisions auth` beats `decisions jwt-vs-session-cookies`.
+- **`[unreadable]` on every file:** The YAML frontmatter is likely using tabs or inconsistent indentation. Open the file with `--full` to inspect the raw content, then repair the frontmatter manually.
+- **All files show `[unreadable]`:** The `/idea-archive` skill may have written files without YAML frontmatter (common if it was run in "quick mode"). These files contain the reasoning but no machine-readable summary — they are still displayed, just without the structured summary line.
+- **Archive has decision files that shouldn't be there:** Files must follow `YYYY-MM-DD-<slug>.md` naming. If you manually created a note in `decisions/`, it will appear under `Unrecognized files:` — rename it to follow the convention or move it elsewhere.
+- **Newest decision not appearing first:** The sort is lexicographic by filename, so the date prefix must be ISO 8601 (`YYYY-MM-DD`). A `MM-DD-YYYY` prefix will sort incorrectly.
+
+---
+
 # When NOT to Use This Skill
 
 - To see experiment scores or kept/discarded code changes → use `/report`
 - To browse in-progress brainstorming → use `/idea-matrix` or `/matrix-draft`
 - To create or update a decision file → use `/idea-archive`
+- To compare multiple decision options that haven't been decided yet → use `/matrix-draft` to frame and `/idea-matrix` to run the debate
