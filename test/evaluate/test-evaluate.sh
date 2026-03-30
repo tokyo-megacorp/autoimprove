@@ -3135,5 +3135,156 @@ assert_json_field "skip-absent: .metrics has exactly 1 key (only present)" "$res
 rm -f "$skip_absent_config" "$skip_absent_baseline"
 
 echo ""
+echo "=== Untested Path: direction field defaults, gate_fail with baseline, benchmark with empty metrics ==="
+
+# Test: direction field omitted → defaults to higher_is_better
+# evaluate.sh line 171: direction=$(jq -r ".benchmarks[$i].metrics[$j].direction // \"higher_is_better\"" "$CONFIG")
+# When the direction key is absent, the jq // fallback returns "higher_is_better".
+# An improvement (value goes up) should be scored as improved → keep.
+echo "--- Test: omitted direction field defaults to higher_is_better ---"
+no_dir_config=$(mktemp)
+cat > "$no_dir_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "no-dir-bench",
+      "command": "echo '{\"score\": 120}'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+no_dir_baseline=$(mktemp)
+# score: baseline=100, candidate=120 → +20%. Without direction, defaults to higher_is_better → improved → keep
+echo '{"metrics":{"score":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$no_dir_baseline"
+result=$("$EVALUATE" "$no_dir_config" "$no_dir_baseline" 2>/dev/null)
+assert_json_field "no-dir: verdict is keep (direction defaults to higher_is_better)" "$result" '.verdict' 'keep'
+assert_json_field "no-dir: score in improved (higher value is better by default)" "$result" '.improved | contains(["score"])' 'true'
+assert_json_field "no-dir: regressed is empty" "$result" '.regressed | length' '0'
+# direction field in .metrics object should reflect the default value used
+assert_json_field "no-dir: metrics.score.direction is higher_is_better" "$result" '.metrics.score.direction' 'higher_is_better'
+rm -f "$no_dir_config" "$no_dir_baseline"
+
+# Test: gate_fail output when a real baseline file IS present (compare mode entry blocked by gate)
+# evaluate.sh runs gates before checking INIT_MODE: a gate fail short-circuits before compare scoring.
+# The gate_fail output must be emitted even when BASELINE points to a real (valid) file.
+echo "--- Test: gate_fail when real baseline file is present → gate_fail preempts compare mode ---"
+gf_baseline_config=$(mktemp)
+cat > "$gf_baseline_config" <<EOF
+{
+  "gates": [{"name": "blocking-gate", "command": "false"}],
+  "benchmarks": [
+    {
+      "name": "should-not-run",
+      "command": "echo '{\"score\": 999}'",
+      "metrics": [
+        {
+          "name": "score",
+          "extract": "json:.score",
+          "direction": "higher_is_better",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+gf_real_baseline=$(mktemp)
+echo '{"metrics":{"score":100},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$gf_real_baseline"
+result=$("$EVALUATE" "$gf_baseline_config" "$gf_real_baseline" 2>/dev/null)
+# Gate fails → gate_fail verdict regardless of baseline presence
+assert_json_field "gf-baseline: verdict is gate_fail (not regress/neutral)" "$result" '.verdict' 'gate_fail'
+assert_json_field "gf-baseline: verdict_logic is gate_fast_fail" "$result" '.verdict_logic' 'gate_fast_fail'
+assert_json_field "gf-baseline: no mode field (compare mode blocked)" "$result" 'has("mode")' 'false'
+# benchmark must NOT have been scored — metrics object is empty
+assert_json_field "gf-baseline: metrics is empty (benchmark never ran)" "$result" '.metrics | length' '0'
+assert_json_field "gf-baseline: improved is empty" "$result" '.improved | length' '0'
+rm -f "$gf_baseline_config" "$gf_real_baseline"
+
+# Test: gate_fail reason string has exact format: "gate '<name>' failed" with single quotes
+# evaluate.sh line 262: reason "gate '$failed_gate' failed"
+# Earlier tests verify the name appears in the reason; this test checks the full format.
+echo "--- Test: gate_fail reason has exact format with single quotes around gate name ---"
+gf_fmt_config=$(mktemp)
+echo '{"gates":[{"name":"exact-name","command":"false"}],"benchmarks":[],"regression_tolerance":0.02,"significance_threshold":0.01}' > "$gf_fmt_config"
+result=$("$EVALUATE" "$gf_fmt_config" /dev/null 2>/dev/null)
+gf_fmt_reason=$(echo "$result" | jq -r '.reason')
+expected_reason="gate 'exact-name' failed"
+assert_eq "gf-fmt: reason is exactly \"gate 'exact-name' failed\"" "$expected_reason" "$gf_fmt_reason"
+rm -f "$gf_fmt_config"
+
+# Test: benchmark with zero metrics in its metrics array — inner loop runs 0 times
+# BENCH_METRICS accumulates nothing for this benchmark. The gate passes. In init mode,
+# the output should be {mode: "init", gates: [...], metrics: {}} with an empty metrics object.
+echo "--- Test: benchmark with empty metrics array → no metrics extracted → empty metrics object ---"
+zero_metrics_bench_config=$(mktemp)
+cat > "$zero_metrics_bench_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "zero-metrics-bench",
+      "command": "echo '{\"score\": 42}'",
+      "metrics": []
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+result=$("$EVALUATE" "$zero_metrics_bench_config" /dev/null 2>/dev/null)
+assert_json_field "zero-metrics-bench: mode is init" "$result" '.mode' 'init'
+assert_json_field "zero-metrics-bench: metrics is empty object (no metrics defined)" "$result" '.metrics | length' '0'
+assert_json_field "zero-metrics-bench: gates ran (1 gate)" "$result" '.gates | length' '1'
+rm -f "$zero_metrics_bench_config"
+
+# Test: direction defaulting to higher_is_better causes a regression to be flagged correctly
+# Without explicit direction, a drop in value (120→80) should be a regression (higher_is_better by default).
+echo "--- Test: omitted direction field defaults to higher_is_better — regression detected on drop ---"
+no_dir_regress_config=$(mktemp)
+cat > "$no_dir_regress_config" <<EOF
+{
+  "gates": [{"name": "pass", "command": "true"}],
+  "benchmarks": [
+    {
+      "name": "no-dir-regress-bench",
+      "command": "echo '{\"throughput\": 80}'",
+      "metrics": [
+        {
+          "name": "throughput",
+          "extract": "json:.throughput",
+          "tolerance": 0.02,
+          "significance": 0.01
+        }
+      ]
+    }
+  ],
+  "regression_tolerance": 0.02,
+  "significance_threshold": 0.01
+}
+EOF
+no_dir_regress_baseline=$(mktemp)
+# throughput: baseline=120, candidate=80 → -33.3%, defaults to higher_is_better → regression
+echo '{"metrics":{"throughput":120},"sha":"abc123","timestamp":"2026-03-25T00:00:00Z"}' > "$no_dir_regress_baseline"
+result=$("$EVALUATE" "$no_dir_regress_config" "$no_dir_regress_baseline" 2>/dev/null)
+assert_json_field "no-dir-regress: verdict is regress (direction defaulted to higher_is_better)" "$result" '.verdict' 'regress'
+assert_json_field "no-dir-regress: throughput in regressed" "$result" '.regressed | contains(["throughput"])' 'true'
+assert_json_field "no-dir-regress: verdict_logic is regression_detected" "$result" '.verdict_logic' 'regression_detected'
+rm -f "$no_dir_regress_config" "$no_dir_regress_baseline"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
