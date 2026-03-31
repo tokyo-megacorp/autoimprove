@@ -81,8 +81,8 @@ Loop: run rounds until **deterministic convergence** is reached or `max_rounds` 
 
 - **CRITICAL: sequential dispatch only.** Run the three agents in strict order for every round: Enthusiast first, then Adversary, then Judge.
 - **Do not dispatch Enthusiast and Adversary in parallel.** The Adversary's job is to challenge the Enthusiast's specific claims, so it MUST see the Enthusiast's completed output before it starts.
-- **Wait for each agent result in the foreground before continuing.** Collect the full Enthusiast output, pass that full output to the Adversary, then pass both full outputs to the Judge.
-- This rule still applies when `/adversarial-review` itself was launched as a background task. The top-level command may be backgrounded; the internal debate agents must remain sequential.
+- **Wait (blocking) for each agent to complete before continuing; dispatch each agent synchronously.** Collect the full Enthusiast output, pass that full output to the Adversary, then pass both full outputs to the Judge.
+- This rule still applies when `/adversarial-review` itself was launched as a background task. The top-level command may be backgrounded; the internal debate agents must still be dispatched synchronously and waited on to complete in order.
 
 - Start at round 1; increment after each complete round.
 - Stop early when `converged = true` (deterministic check, section 3d). Record `converged_at_round`.
@@ -107,7 +107,7 @@ Prompt: Review the following code and find all issues.
 Output your findings as a single JSON object matching the schema. Nothing else.
 ```
 
-Dispatch the Enthusiast in the foreground and wait for the full response before dispatching the Adversary.
+Dispatch the Enthusiast synchronously and wait for the full response before dispatching the Adversary.
 
 **Validate output**: Parse the Enthusiast's response as JSON.
 - If valid JSON with a non-empty `findings` array → store as `ENTHUSIAST_OUTPUT` and continue.

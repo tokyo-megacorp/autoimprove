@@ -9,7 +9,7 @@ assert_file_contains() {
     local file="$1"
     local pattern="$2"
     local name="$3"
-    if grep -Eq "$pattern" "$file"; then
+    if grep -Fq "$pattern" "$file"; then
         echo "  [PASS] $name"
     else
         echo "  [FAIL] $name"

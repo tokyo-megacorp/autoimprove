@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-tests=("test-review.sh")
+tests=("test-review.sh" "test-adversarial-review-sequencing.sh")
 [ -n "$SPECIFIC_TEST" ] && tests=("$SPECIFIC_TEST")
 
 passed=0; failed=0
