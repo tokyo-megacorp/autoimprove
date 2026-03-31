@@ -385,10 +385,15 @@ Also persist the self-assessment in `$RUN_DIR/meta.json` under a `self_assessmen
 # 5. Notes
 
 ## Background execution reliability
-- When spawning AR as a background agent, use a SINGLE Agent() call with the Skill invocation in the prompt
+
+**This skill ALWAYS executes E→A→J inline — it NEVER re-dispatches itself to background.**
+
+If you are already inside a background agent: execute the E→A→J pipeline directly here. Do NOT spawn another background agent.
+
+If the CALLER wants non-blocking AR from outside:
+- Use `Agent(run_in_background: true, prompt: "Invoke Skill('autoimprove:adversarial-review', args: '...')")` — no `subagent_type` (uses default general-purpose)
+- Do NOT specify `subagent_type: autoimprove:adversarial-review` — that agent type does not exist
 - Do NOT nest background agents inside background agents (causes silent failures)
-- If AR background agent goes idle without results after 2 idle cycles: re-dispatch inline (foreground)
-- Pattern: `Agent(run_in_background: true, prompt: "Invoke Skill('autoimprove:adversarial-review', args: '...')")`
 
 - Each agent is spawned with `model: sonnet` for cost efficiency.
 - The review skill NEVER influences keep/discard decisions in the autoimprove loop. It is advisory only.

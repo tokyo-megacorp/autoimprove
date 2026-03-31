@@ -2,6 +2,23 @@
 
 All notable changes to autoimprove are documented here.
 
+## [0.2.0] — 2026-03-31 — Benchmarks + Calibration
+
+### Fixed
+- `fix(config)`: remove LLM-based benchmarks that broke Haiku grind loops
+- `fix(docs)`: `adversarial-review` SKILL.md — clarify inline-only execution (no background re-dispatch)
+
+### Added
+- `feat(benchmark)`: effectiveness benchmarks for adversarial-review + idea-matrix (#59)
+- `feat(calibrate)`: cross-model calibration skill for adversarial-review (#58)
+
+### Improved
+- Skill quality improvements: `run`, `matrix-draft`, `docs-regenerate`, `prompt-testing`, `init`, `challenge`
+- Agent prompt depth: examples, failure patterns, edge-case handling for 3 core agents
+- Test coverage: 60+ new assertions across evaluate, compare-mode, shell extractor, and trigger state
+
+---
+
 ## [0.1.0] — 2026-03-30 — Inaugural Release
 
 > First release of the autonomous codebase improvement loop.
