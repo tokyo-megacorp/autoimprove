@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/home/runner/work/autoimprove/autoimprove"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SKILL="$ROOT/skills/adversarial-review/SKILL.md"
 COMMAND="$ROOT/commands/adversarial-review.md"
 

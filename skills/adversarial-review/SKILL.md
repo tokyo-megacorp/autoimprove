@@ -107,7 +107,7 @@ Prompt: Review the following code and find all issues.
 Output your findings as a single JSON object matching the schema. Nothing else.
 ```
 
-Dispatch the Enthusiast in the foreground and wait for the full response before moving to 3b.
+Dispatch the Enthusiast in the foreground and wait for the full response before dispatching the Adversary.
 
 **Validate output**: Parse the Enthusiast's response as JSON.
 - If valid JSON with a non-empty `findings` array → store as `ENTHUSIAST_OUTPUT` and continue.
@@ -133,7 +133,7 @@ Prompt: Review the Enthusiast's findings and challenge them.
 Output your verdicts as a single JSON object matching the schema. Nothing else.
 ```
 
-Only start this step after `ENTHUSIAST_OUTPUT` is fully available. Pass the full Enthusiast JSON through `<findings>...</findings>` exactly as produced — do not summarize or paraphrase it.
+Only start this step after `ENTHUSIAST_OUTPUT` is fully available. Pass the full Enthusiast JSON into the existing `<findings>` block exactly as produced — do not summarize or paraphrase it.
 
 **Validate output**: Parse the Adversary's response as JSON.
 - If valid JSON with a `verdicts` array → store as `ADVERSARY_OUTPUT` and continue.
