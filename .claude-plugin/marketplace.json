@@ -12,7 +12,7 @@
         "repo": "ipedro/autoimprove"
       },
       "description": "Autonomous codebase improvement loop — modify code, evaluate against benchmarks, keep or discard via git worktrees",
-      "version": "0.1.0"
+      "version": "0.2.0"
     }
   ]
 }
