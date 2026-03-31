@@ -31,10 +31,10 @@ This review MUST run in the background so the user is not blocked.
 ## What It Does
 
 1. Spawns a **background Agent** (using `run_in_background: true`) with the `adversarial-review` skill.
-2. The skill runs three sequential agents — Enthusiast, Adversary, Judge — debating the changes:
-   - **Enthusiast** surfaces strengths and best-case interpretations.
-   - **Adversary** challenges assumptions, finds risks, and proposes failure modes.
-   - **Judge** weighs both sides and emits confirmed vs debunked findings with severity ratings.
+2. Inside that background run, the skill executes three agents **sequentially, never in parallel** — Enthusiast, Adversary, Judge:
+    - **Enthusiast** surfaces strengths and best-case interpretations.
+    - **Adversary** waits for the Enthusiast's full output, then challenges those specific claims.
+    - **Judge** waits for both prior outputs, then emits confirmed vs debunked findings with severity ratings.
 3. Results are written to a timestamped run folder under `experiments/ar-runs/`.
 
 ## Output
@@ -63,6 +63,7 @@ Run folder: experiments/ar-runs/2026-03-29T14-22-00/
 ## Notes
 
 - **Always non-blocking.** The review is dispatched in the background — the orchestrator session remains available immediately.
+- **Sequential internals are mandatory.** The top-level review may run in the background, but the Enthusiast → Adversary → Judge chain must run in order with outputs passed forward between agents.
 - Requires `gh` CLI for `pr <number>` mode.
 - The Enthusiast→Adversary→Judge pattern is fixed; individual agents cannot be run standalone via this command.
 
