@@ -68,6 +68,10 @@ for pat in patterns:
     full_pat = os.path.join(root, pat)
     for match in sorted(globmod.glob(full_pat, recursive=True)):
         if os.path.isfile(match) and match not in seen:
+            if '\n' in match:
+                import sys as _sys
+                _sys.stderr.write(f"[harvest-themes] warning: skipping file with newline in path: {repr(match)}\n")
+                continue
             seen.add(match)
             print(match)
 PYEOF
