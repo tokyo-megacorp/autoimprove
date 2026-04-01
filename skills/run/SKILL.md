@@ -23,7 +23,7 @@ description: |
 
   Do NOT use to review results → report. Do NOT inspect state → status. Do NOT browse history → history. Do NOT revert → rollback.
 argument-hint: "[--experiments N] [--theme THEME] [--resume] [--phase propose]"
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate, TaskList, TaskGet]
 ---
 
 Run the autoimprove experiment loop: read config, manage state, spawn experimenter agents into worktrees, evaluate their changes deterministically, and keep or discard based on the verdict.
@@ -130,6 +130,35 @@ Read `experiments/state.json` if it exists. Otherwise create:
 
 Increment `session_count`, set `last_session` to current ISO timestamp. Decrement all `theme_cooldowns` by 1; remove any that reach 0 or below.
 
+## 2d-ii. Create Session TaskTree
+
+Create the parent task for visual progress tracking:
+
+```
+TaskCreate(
+  subject: "Autoimprove Session #<session_count>",
+  description: "Automated experiment session",
+  metadata: {session_id: <session_count>, started_at: "<ISO>"}
+)
+→ store returned task ID as SESSION_TASK_ID
+```
+
+Create the setup task and mark it in-progress immediately:
+
+```
+TaskCreate(
+  subject: "Setup: config + baseline + preflight",
+  description: "Load config, capture baseline, validate benchmarks",
+  activeForm: "Setting up session",
+  metadata: {phase: "setup"}
+)
+→ store returned task ID as SETUP_TASK_ID
+
+TaskUpdate(taskId: SETUP_TASK_ID, status: "in_progress")
+```
+
+The setup task covers steps 2a through 2h. Mark it completed after preflight (2h) succeeds.
+
 ## 2e. Load Experiment Log
 
 Read `experiments/experiments.tsv`. If missing, create with header:
@@ -141,6 +170,20 @@ id	timestamp	theme	verdict	improved_metrics	regressed_metrics	tokens	wall_time	c
 Determine the next experiment ID by counting data rows (zero-padded to 3 digits: `001`, `002`, …).
 
 ## 2f. Crash Recovery
+
+### 2f-i. TaskTree Recovery (preferred)
+
+If `--resume` was passed, check for incomplete experiment tasks from a prior session:
+
+```
+TaskList() → look for tasks with metadata.phase == "experiment"
+```
+
+- Tasks with status `in_progress`: agent crashed mid-experiment. Reset: `TaskUpdate(taskId, status: "pending")`.
+- Tasks with status `pending` and all `blockedBy` completed: ready to run — leave as-is.
+- If TaskList returns no experiment tasks: no prior session to recover — fall through to worktree cleanup.
+
+### 2f-ii. Worktree Cleanup (fallback)
 
 ```bash
 git worktree list --porcelain
@@ -195,11 +238,62 @@ Before entering the experiment loop, verify all benchmarks produce the expected 
 
 A benchmark that silently fails (exits 0 but omits metrics) will produce misleading verdicts. Validate now, not after experiments run.
 
+Mark setup complete:
+
+```
+TaskUpdate(taskId: SETUP_TASK_ID, status: "completed", metadata: {baseline_sha: "<HEAD>"})
+```
+
+---
+
+## 2i. Create Experiment Tasks
+
+Pre-create all experiment tasks so the full session plan is visible and crash-recoverable.
+
+Initialize `PREV_TASK_ID = SETUP_TASK_ID`.
+
+For each experiment slot `i` from 1 to `max_experiments_per_session` (or `--experiments N` override):
+
+1. **Select theme:** Run `theme-weights.sh` (step 3c logic). If `--theme THEME` was passed, use it for all slots. Apply stagnation and cooldown filters — skip slots where no eligible theme exists.
+2. **Assign experiment ID:** Next available zero-padded ID from experiments.tsv.
+3. **Create the task and chain it to the previous one (setup for exp-001, previous experiment for exp-002+):**
+
+```
+TaskCreate(
+  subject: "Experiment <id>: <theme>",
+  description: "Theme: <theme>. Constraints: max_files=<N>, max_lines=<N>.",
+  activeForm: "Running experiment <id>",
+  metadata: {exp_id: "<id>", theme: "<theme>", phase: "experiment"}
+)
+→ store returned task ID as <exp_task_id>
+
+TaskUpdate(taskId: <exp_task_id>, addBlockedBy: [PREV_TASK_ID])
+PREV_TASK_ID = <exp_task_id>
+```
+
+4. **Collect** all experiment task IDs into `EXPERIMENT_TASK_IDS` array.
+
+After all experiment tasks are created, create the report task blocked on the **last** experiment only (which transitively depends on all prior experiments):
+
+```
+TaskCreate(
+  subject: "Session Report",
+  description: "Generate session summary after all experiments complete",
+  activeForm: "Generating session report",
+  metadata: {phase: "report"}
+)
+→ store returned task ID as REPORT_TASK_ID
+
+TaskUpdate(taskId: REPORT_TASK_ID, addBlockedBy: [PREV_TASK_ID])
+```
+
+If zero experiment tasks were created (all themes stagnated/on cooldown), skip directly to Session End.
+
 ---
 
 # 3. Experiment Loop
 
-Read `references/loop.md` and execute the full experiment loop (sections 3a–3m) and session end (section 4). Maintain all session state (counters, config, baselines) in this same context throughout — do not delegate to a subagent.
+Read `references/loop.md` and `references/tasktree.md`, then execute the full experiment loop (sections 3a–3o) and session end (section 4). Session state lives in TaskTree + experiments.tsv. The orchestrator manages task lifecycle and delegates individual experiments to Agent subagents. See `references/tasktree.md` for the TaskTree protocol.
 
 ---
 
@@ -215,11 +309,13 @@ These must hold throughout execution. If any is violated, halt and report.
 6. **Rebase failure = discard.** Never force-merge or create merge commits.
 7. **State is persisted after every experiment.** Crash recovery depends on it.
 8. **Test modification is additive only.** Always include this constraint in the experimenter prompt.
+9. **TaskTree is orchestration, experiments.tsv is history.** TaskTree tracks live status during a session. experiments.tsv is the durable, append-only record. Both are updated, but experiments.tsv is the source of truth for cross-session analysis.
 
 ## Additional Resources
 
-- **`references/loop.md`** — Full experiment loop (steps 3a–3m) and session end (steps 4a–4c)
-- **`scripts/theme-weights.sh`** — Computes adjusted theme weights from `experiments.tsv` history. Called at each theme selection (step 3c). Themes with higher keep rates get boosted weight; themes with no keeps get penalised (min 0.25× base). Experimenter never sees weights.
+- **`references/loop.md`** — Full experiment loop (steps 3a–3o) and session end (steps 4a–4c)
+- **`references/tasktree.md`** — TaskTree orchestration protocol: task lifecycle, metadata schemas, crash recovery, parallel execution
+- **`scripts/theme-weights.sh`** — Computes adjusted theme weights from `experiments.tsv` history. Called at theme selection (step 2i). Themes with higher keep rates get boosted weight; themes with no keeps get penalised (min 0.25× base). Experimenter never sees weights.
 
 ---
 
@@ -240,7 +336,7 @@ If `evaluate.sh` in init mode reports a gate failure, `run` will stop before the
 
 **Stale worktrees from a crashed session**
 
-Step 2f handles crash recovery automatically. If you see unexpected `autoimprove/` worktrees listed by `git worktree list` after a crash, re-running `run` will clean them up before starting the loop. Do not manually delete them with `git worktree remove` — let the skill do it so the TSV is updated correctly.
+Step 2f handles crash recovery automatically. First, TaskTree recovery (2f-i) checks for incomplete experiment tasks and resets them to pending. Then, worktree cleanup (2f-ii) removes orphaned worktrees. Re-running `run --resume` will recover from both. Do not manually delete worktrees with `git worktree remove` — let the skill do it so the TSV is updated correctly.
 
 **Experiment loop runs 0 experiments**
 

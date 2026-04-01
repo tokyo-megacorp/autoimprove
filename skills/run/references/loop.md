@@ -1,6 +1,6 @@
 # Experiment Loop + Session End
 
-Continue from where SKILL.md left off. All session state (config, baselines, state.json, counters) is already loaded.
+Continue from where SKILL.md left off. All session state (config, baselines, state.json, counters) is already loaded. The TaskTree has been created (session task, setup task completed, experiment tasks pending, report task blocked). See `references/tasktree.md` for the task lifecycle protocol.
 
 ---
 
@@ -11,8 +11,11 @@ Initialize: `experiment_count = 0`, `session_keeps = 0`, `session_fails = 0`, `s
 ## 3a. Budget Check
 
 ```
-if experiment_count >= budget.max_experiments_per_session → go to Session End
+TaskList() → count experiment tasks by status.
+If all experiment tasks are completed (including skipped) → go to Session End.
 ```
+
+Also maintain `experiment_count` as a local counter for the summary.
 
 ## 3b. Stagnation Check
 
@@ -21,27 +24,30 @@ active_themes = themes where theme_cooldowns[theme] <= 0 or not in cooldowns
 if ALL active_themes have theme_stagnation[theme] >= stagnation_window → go to Session End
 ```
 
-## 3c. Theme Selection
-
-First, compute adjusted weights from historical experiment data:
-
-```bash
-WEIGHTS_JSON=$(bash scripts/theme-weights.sh autoimprove.yaml experiments/experiments.tsv)
+If a theme becomes stagnated mid-session, mark remaining pending experiment tasks for that theme as completed:
+```
+TaskUpdate(taskId: <exp_task_id>, status: "completed", metadata: {verdict: "skipped_stagnated"})
 ```
 
-Log: `[THEME_WEIGHTS: <WEIGHTS_JSON>]`
+## 3c. Theme Selection
 
-Pick a theme using weighted random from the adjusted weights. Skip themes on cooldown or stagnated.
+Theme was pre-selected during task creation (step 2i in SKILL.md). Read the next pending experiment task's `metadata.theme`.
 
-Weighted random: `P(T) = adjusted_weights[T] / sum(all eligible adjusted_weights)`.
+```
+next_task = first pending experiment task from TaskList() where all blockedBy tasks are completed
+THEME = next_task.metadata.theme
+EXP_ID = next_task.metadata.exp_id
+```
 
-Adjusted weights are computed by `theme-weights.sh` from `experiments.tsv`:
-- Cold start (< 3 samples): factor 0.5 × base (neutral, no history yet)
-- keep_rate 0% → 0.5× base; keep_rate 100% → 1.5× base; floor 0.25× base
+If the theme is now on cooldown or stagnated (state changed during this session), skip it:
+```
+TaskUpdate(taskId: next_task.id, status: "completed", metadata: {verdict: "skipped_stagnated"})
+→ go to 3a
+```
 
-**Goodhart boundary:** `WEIGHTS_JSON` is used for selection only. Never include it in the experimenter prompt.
+**Goodhart boundary (preserved):** theme-weights.sh was used for selection during 2i. Never include weight data in the experimenter prompt.
 
-If `--theme` was passed, use that theme exclusively (unless it's on cooldown or stagnated, in which case skip).
+**Reference:** Theme weight computation details (cold start factors, keep-rate scaling, floor 0.25x base) are in step 2i of SKILL.md where themes are selected.
 
 ## 3d. Trust Tier Constraints
 
@@ -94,7 +100,15 @@ If `FOCUS` is empty (unknown theme or no matches), spawn experimenter with full 
 > not the target repo. For cross-repo grind loops: use manual `git worktree add` from the
 > target repo directory. Do NOT rely on `isolation:"worktree"` when CWD ≠ target repo.
 
-Build the experimenter prompt with:
+### Claim the task
+
+```
+TaskUpdate(taskId: next_task.id, status: "in_progress", owner: "orchestrator")
+```
+
+### Build the experimenter prompt
+
+Include:
 - Theme name
 - Constraints: `max_files`, `max_lines`
 - Forbidden paths from `constraints.forbidden_paths`
@@ -103,6 +117,10 @@ Build the experimenter prompt with:
 - Focus files from harvest scan (from 3f), if any
 
 Do NOT include: metric names, benchmark definitions, scoring logic, tolerance/significance values, current scores, evaluate-config.json contents, or trust tier number.
+
+### Dispatch
+
+Experiments always run **one at a time** — the TaskTree chain enforces this (each experiment is blocked by the previous). Spawn one experimenter and wait for it to complete before the loop returns to 3a.
 
 ```
 Agent(
@@ -216,7 +234,7 @@ Increment the appropriate counter. For `neutral`: increment `theme_stagnation[TH
 
 ## 3k. Log Experiment
 
-Append to `experiments/experiments.tsv`:
+**First**, append to `experiments/experiments.tsv` (durable record — always before task update):
 ```
 <id>	<ISO timestamp>	<theme>	<verdict>	<improved or ->	<regressed or ->	<tokens or 0>	<wall_time>	<commit_msg or ->
 ```
@@ -246,6 +264,23 @@ Write `experiments/<id>/context.json`:
 }
 ```
 
+**Then**, update the experiment task with structured metadata:
+```
+TaskUpdate(taskId: <exp_task_id>, status: "completed", metadata: {
+  exp_id: "<id>",
+  theme: "<theme>",
+  verdict: "<keep|gate_fail|regress|neutral|rebase_fail>",
+  tokens: <N>,
+  wall_time_ms: <N>,
+  improved_metrics: [...],
+  regressed_metrics: [...],
+  commit_sha: "<sha or null>",
+  worktree_branch: "autoimprove/<id>-<theme>"
+})
+```
+
+**Invariant 9 enforced:** experiments.tsv is always written before TaskUpdate. The TSV is the durable record; task metadata is supplementary.
+
 ## 3l. Epoch Drift Check
 
 After every experiment, compute drift for each metric:
@@ -255,6 +290,11 @@ drift_pct = abs(rolling[metric] - epoch[metric]) / epoch[metric]
 
 If any metric has drifted beyond `safety.epoch_drift_threshold` (default 5%) in the regressing direction → halt session immediately. Log: `"EPOCH DRIFT HALT: <metric> drifted <drift_pct>%"`.
 
+On drift halt, mark all remaining pending experiment tasks as completed:
+```
+TaskUpdate(taskId: <exp_task_id>, status: "completed", metadata: {verdict: "skipped_drift_halt"})
+```
+
 ## 3m. Persist State
 
 Write `experiments/state.json` after every experiment to enable crash recovery.
@@ -262,7 +302,8 @@ Write `experiments/state.json` after every experiment to enable crash recovery.
 ## 3n. Increment and Continue
 
 ```
-experiment_count += 1 → go to 3a
+experiment_count += 1
+→ go to 3a (TaskList will reveal the next pending experiment task)
 ```
 
 ## 3o. Theme Fitness Monitoring (informational)
@@ -319,3 +360,16 @@ Write `experiments/state.json` one final time.
 ```
 
 List each kept experiment with its commit message and improved metrics.
+
+Mark the report task completed with session summary metadata:
+```
+TaskUpdate(taskId: REPORT_TASK_ID, status: "completed", metadata: {
+  phase: "report",
+  total_experiments: <count>,
+  keeps: <session_keeps>,
+  gate_failures: <session_fails>,
+  regressions: <session_regresses>,
+  neutrals: <session_neutrals>,
+  exit_reason: "<budget_exhausted | all_stagnated | epoch_drift_halt>"
+})
+```
