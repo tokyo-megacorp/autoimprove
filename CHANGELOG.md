@@ -2,6 +2,17 @@
 
 All notable changes to autoimprove are documented here.
 
+## [0.3.0] — 2026-04-01 — AR Smoke Gate
+
+### Added
+- `feat(ar)`: ar-effectiveness smoke test gate — validates adversarial-review pipeline end-to-end (#66)
+
+### Fixed
+- `fix(adversarial-review)`: run E→A→J inline in foreground, fix agent subagent_type (#65)
+- `fix(ar)`: aggregate diff range guidance (#67)
+
+---
+
 ## [0.2.0] — 2026-03-31 — Benchmarks + Calibration
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "name": "autoimprove",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Autonomous codebase improvement loop — modify code, evaluate against benchmarks, keep or discard via git worktrees",
   "author": {
     "name": "Pedro Almeida",
