@@ -105,6 +105,11 @@ For each round:
 
 Mark progress: `TodoWrite([{id: "enthusiast", content: "Enthusiast — surface findings", status: "in_progress"}, ...])`  (keep adversary + judge as pending).
 
+**Before spawning (round > 1):** Build the `CONFIRMED_LOCATIONS` set from all prior rounds:
+- Extract every `(file, line)` tuple from rulings where `winner = "enthusiast"` or `winner = "split"` across all `ROUNDS`.
+- Format as a plain list: `"src/foo.ts:42, src/bar.ts:17, ..."`.
+- This list goes into the Enthusiast prompt as an explicit blocklist (see below).
+
 Use the Agent tool to spawn the `autoimprove:enthusiast` agent (`subagent_type: "autoimprove:enthusiast"`):
 
 ```
@@ -114,7 +119,13 @@ Prompt: Review the following code and find all issues.
 {TARGET_CODE}
 </code>
 
-{If round > 1: "Prior round findings and rulings: {PRIOR_ROUND_OUTPUT}. Focus on what was MISSED — do not repeat prior findings."}
+{If round > 1:
+"ALREADY CONFIRMED — skip these locations entirely, do not mention them:
+{CONFIRMED_LOCATIONS}
+
+Prior round summary: {PRIOR_JUDGE_SUMMARY}
+
+Your task is to find issues NOT in the confirmed list above. If you re-raise a confirmed location, your finding will be automatically discarded before reaching the Adversary. Focus exclusively on new, uncovered problems."}
 
 Output your findings as a single JSON object matching the schema. Nothing else.
 ```
@@ -126,6 +137,19 @@ Dispatch the Enthusiast synchronously and wait for the full response before disp
 - If invalid JSON → re-prompt once: `"Your previous response was not valid JSON. Return only the corrected JSON object — no prose, no markdown fences."` Re-parse. If still invalid → log `enthusiast_malformed_json` for this round, skip to next round (or abort if only round).
 - If valid JSON but `findings` is empty → note "Enthusiast found no issues" and skip 3b/3c for this round; proceed to 3e.
 - **Sparse-output check (round 1 only):** If round == 1 and the raw response text is ≤ 50 characters (e.g. `{}`, `{"findings":[]}`, or a single word), the response is almost certainly truncated or the model failed silently. Re-prompt once: `"Your response appears to be incomplete. Return the full JSON object with all findings — do not truncate."` If the retry is also sparse (≤ 50 chars) or invalid, log `enthusiast_sparse_output` and treat as `findings: []` (not as a clean empty — note it in the output warning).
+
+## 3a.5. Pre-Adversary Dedup
+
+After storing `ENTHUSIAST_OUTPUT`, auto-dismiss duplicate findings before the Adversary sees them:
+
+1. Extract all `(file, line)` tuples from the new Enthusiast findings.
+2. For each tuple, check if it matches any entry in `CONFIRMED_LOCATIONS` — where "match" means same file AND `|new_line - confirmed_line| <= 5`.
+3. Split findings into: `NOVEL_FINDINGS` (no match) and `DUPLICATE_FINDINGS` (matched).
+4. If `DUPLICATE_FINDINGS` is non-empty: log `"Auto-dismissed {N} duplicate finding(s) before Adversary: {file:line, ...}"`.
+5. Replace `ENTHUSIAST_OUTPUT.findings` with `NOVEL_FINDINGS` only before passing to 3b.
+6. **If ALL findings are duplicates** (NOVEL_FINDINGS is empty): skip 3b/3c, treat as `findings: []` convergence path (section 3d). Do not spawn Adversary or Judge this round.
+
+This dedup is orchestrator-side only — the Adversary and Judge never see confirmed-location re-raises.
 
 ## 3b. Spawn Adversary
 
@@ -141,8 +165,10 @@ Prompt: Review the Enthusiast's findings and challenge them.
 </code>
 
 <findings>
-{ENTHUSIAST_OUTPUT}
+{ENTHUSIAST_OUTPUT with NOVEL_FINDINGS only}
 </findings>
+
+Challenge the findings above. A healthy challenge rate is 15–25% of findings. If every finding looks valid to you, look harder — the Enthusiast is not infallible. Validating 100% of findings without pushback signals insufficient scrutiny, not thoroughness.
 
 Output your verdicts as a single JSON object matching the schema. Nothing else.
 ```
@@ -195,7 +221,8 @@ Convergence is only meaningful from round 2 onward.
 
 **Deterministic check (orchestrator-side):** When `round > 1` and Enthusiast did find issues, compute convergence by comparing this round's judge rulings to the prior round's judge rulings:
 - Extract the set of `(file, line, winner, final_severity)` tuples from both rounds (use `file`+`line` as identity, not `finding_id` — IDs reset each round and are not stable across rounds)
-- If the sets are identical (same locations, same winners, same severities in any order) → `converged = true`
+- **Line tolerance:** two tuples with the same `file` and `winner` where `|line_A - line_B| <= 5` are considered the same finding. Normalize before comparing: assign each finding to the lowest line in its ±5-line cluster.
+- If the normalized sets are identical (same locations, same winners, same severities in any order) → `converged = true`
 - This overrides whatever the Judge reported
 - If a ruling has `file: null`, use `(null, resolution_text_hash, winner, final_severity)` as the tuple — hash the first 60 characters of `resolution` to fingerprint architectural findings
 
@@ -206,6 +233,10 @@ Convergence is only meaningful from round 2 onward.
 **Stop condition:** Stop the loop early when `converged = true` (either path above). Record `converged_at_round = round`.
 
 ## 3e. Store Round
+
+After each complete round, update `PRIOR_JUDGE_SUMMARY`:
+- Extract the `summary` field from `JUDGE_OUTPUT` (or a brief sentence describing confirmed/debunked counts if no summary field).
+- Store as `PRIOR_JUDGE_SUMMARY` — this is what goes into the next round's Enthusiast prompt.
 
 Accumulate round results into `ROUNDS` array.
 
