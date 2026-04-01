@@ -93,7 +93,7 @@ For each round:
 
 ## 3a. Spawn Enthusiast
 
-Use the Agent tool to spawn the `enthusiast` agent:
+Use the Agent tool to spawn the `autoimprove:enthusiast` agent (`subagent_type: "autoimprove:enthusiast"`):
 
 ```
 Prompt: Review the following code and find all issues.
@@ -117,7 +117,7 @@ Dispatch the Enthusiast synchronously and wait for the full response before disp
 
 ## 3b. Spawn Adversary
 
-Use the Agent tool to spawn the `adversary` agent:
+Use the Agent tool to spawn the `autoimprove:adversary` agent (`subagent_type: "autoimprove:adversary"`):
 
 ```
 Prompt: Review the Enthusiast's findings and challenge them.
@@ -141,7 +141,7 @@ Only start this step after `ENTHUSIAST_OUTPUT` is fully available. Pass the full
 
 ## 3c. Spawn Judge
 
-Use the Agent tool to spawn the `judge` agent:
+Use the Agent tool to spawn the `autoimprove:judge` agent (`subagent_type: "autoimprove:judge"`):
 
 ```
 Prompt: Arbitrate between the Enthusiast and Adversary.

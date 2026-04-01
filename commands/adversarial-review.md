@@ -1,10 +1,12 @@
 ---
 name: adversarial-review
-description: Run the adversarial Enthusiast→Adversary→Judge debate review on the current diff, a file, or a PR. Always runs in background.
-argument-hint: "[file|diff|pr <number>]"
+description: Run the adversarial Enthusiast→Adversary→Judge debate review on the current diff, a file, or a PR. Runs in foreground with sequential E→A→J agents.
+argument-hint: "[file|diff|pr <number>|<url>]"
 ---
 
-This review MUST run in the background so the user is not blocked.
+Invoke the `autoimprove:adversarial-review` skill with `$ARGUMENTS`.
+
+The skill runs the Enthusiast → Adversary → Judge chain inline, sequentially, in foreground. Do NOT wrap it in a background agent.
 
 ## Arguments
 
@@ -13,7 +15,6 @@ This review MUST run in the background so the user is not blocked.
 | (none) | Staged + unstaged diff (`git diff HEAD`) |
 | `diff` | Same as no argument — current working-tree diff |
 | `<file-path>` | A single file (e.g., `scripts/evaluate.sh`) |
-| `pr <number>` | A GitHub PR by number (e.g., `pr 42`) — fetches the PR diff via `gh` |
 
 ## Usage Examples
 
@@ -23,29 +24,17 @@ This review MUST run in the background so the user is not blocked.
 
 # Review a specific file
 /adversarial-review scripts/evaluate.sh
-
-# Review a GitHub PR
-/adversarial-review pr 42
 ```
-
-## What It Does
-
-1. Spawns a **background Agent** (using `run_in_background: true`) with the `adversarial-review` skill.
-2. Inside that background run, the skill executes three agents **sequentially, never in parallel** — Enthusiast, Adversary, Judge:
-    - **Enthusiast** surfaces strengths and best-case interpretations.
-    - **Adversary** waits for the Enthusiast's full output, then challenges those specific claims.
-    - **Judge** waits for both prior outputs, then emits confirmed vs debunked findings with severity ratings.
-3. Results are written to a timestamped run folder under `experiments/ar-runs/`.
 
 ## Output
 
-When the background agent completes, the summary includes:
+Results appear after the full debate completes:
 
 - Confirmed findings count vs debunked count
 - Top confirmed findings at critical/high severity (title + one-line rationale)
-- Path to the full run folder for detailed output
+- Path to the full run folder
 
-Example summary:
+Example:
 
 ```
 Adversarial review complete.
@@ -57,15 +46,13 @@ Top confirmed:
   [HIGH]     Rolling baseline updated before gate check — allows ratchet bypass
   [HIGH]     Theme cooldown not persisted across sessions
 
-Run folder: experiments/ar-runs/2026-03-29T14-22-00/
+Run folder: ~/.autoimprove/runs/YYYYMMDD-HHMMSS-<target-slug>/
 ```
 
 ## Notes
 
-- **Always non-blocking.** The review is dispatched in the background — the orchestrator session remains available immediately.
-- **Sequential internals are mandatory.** The top-level review may run in the background, but the Enthusiast → Adversary → Judge chain must run in order with outputs passed forward between agents.
-- Requires `gh` CLI for `pr <number>` mode.
-- The Enthusiast→Adversary→Judge pattern is fixed; individual agents cannot be run standalone via this command.
+- **Runs in foreground.** The E→A→J chain is sequential and blocking — results appear when the full debate completes.
+- **Sequential internals are mandatory.** Enthusiast → Adversary → Judge must run sequentially, never in parallel, with outputs passed forward between agents.
 
 ## Related Commands
 
