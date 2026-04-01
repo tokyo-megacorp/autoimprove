@@ -1,6 +1,24 @@
 # Skills Reference
 
-autoimprove has 7 skills organized into three feature groups: the grind loop, adversarial review, and design exploration.
+autoimprove has 8 skills organized into three feature groups: the grind loop, adversarial review, and design exploration.
+
+---
+
+## autoimprove
+
+**Purpose:** Top-level alias for the autonomous experiment grind loop. Exists so callers can invoke `Skill(autoimprove)` or `/autoimprove` directly.
+
+**Trigger:** "start autoimprove", "run the main autoimprove loop", `/autoimprove`
+
+**Arguments:** `[--experiments N] [--theme THEME]`
+
+**What it does:**
+
+1. Loads the [run](#run) skill instructions
+2. Preserves the user arguments exactly
+3. Executes the same orchestrator flow as `run`
+
+**Tools:** Read, Write, Edit, Bash, Glob, Grep, Agent
 
 ---
 

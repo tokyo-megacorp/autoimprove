@@ -1,6 +1,27 @@
 # Commands Reference
 
-autoimprove provides 7 slash commands accessible from within Claude Code. All commands are thin wrappers that delegate to [skills](skills.md).
+autoimprove provides 8 slash commands accessible from within Claude Code. All commands are thin wrappers that delegate to [skills](skills.md).
+
+---
+
+## `/autoimprove`
+
+Runs the improvement loop on the current project. This is the direct top-level alias for `/autoimprove run`.
+
+```
+/autoimprove [--experiments N] [--theme THEME]
+```
+
+**Options:**
+
+| Option | Description |
+|---|---|
+| `--experiments N` | Override `max_experiments_per_session` for this run. E.g. `--experiments 5` for a quick trial. |
+| `--theme THEME` | Pin the session to a single theme. E.g. `--theme failing_tests`. Useful for focused work. |
+
+**What it does:**
+
+Loads the top-level `autoimprove` skill, which delegates to the main orchestrator flow used by `/autoimprove run`.
 
 ---
 

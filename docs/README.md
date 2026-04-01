@@ -10,8 +10,8 @@ Autonomous codebase improvement loop for [Claude Code](https://docs.anthropic.co
 
 ## Reference
 
-- [Commands](commands.md) — All 7 slash commands
-- [Skills](skills.md) — All 7 skills (init, run, report, challenge, adversarial-review, idea-matrix, prompt-testing)
+- [Commands](commands.md) — All 8 slash commands
+- [Skills](skills.md) — All 8 skills (autoimprove, init, run, report, challenge, adversarial-review, idea-matrix, prompt-testing)
 - [Agents](agents.md) — All 6 agents (experimenter, enthusiast, adversary, judge, challenge-runner, idea-explorer)
 
 ## Deep Dives
@@ -25,7 +25,7 @@ Autonomous codebase improvement loop for [Claude Code](https://docs.anthropic.co
 
 The core feature. Spawns experimenter agents into git worktrees, evaluates changes deterministically, keeps or discards.
 
-Commands: [`/autoimprove-init`](commands.md#autoimprove-init), [`/autoimprove-run`](commands.md#autoimprove-run), [`/autoimprove-report`](commands.md#autoimprove-report) | Skills: [init](skills.md#init), [run](skills.md#run), [report](skills.md#report) | Agents: [experimenter](agents.md#experimenter)
+Commands: [`/autoimprove`](commands.md#autoimprove), [`/autoimprove-run`](commands.md#autoimprove-run), [`/autoimprove-report`](commands.md#autoimprove-report), [`/autoimprove-init`](commands.md#autoimprove-init) | Skills: [autoimprove](skills.md#autoimprove), [init](skills.md#init), [run](skills.md#run), [report](skills.md#report) | Agents: [experimenter](agents.md#experimenter)
 
 ### Adversarial Review (debate-based code review)
 
