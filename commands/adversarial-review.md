@@ -54,7 +54,7 @@ Top confirmed:
   [HIGH]     Rolling baseline updated before gate check — allows ratchet bypass
   [HIGH]     Theme cooldown not persisted across sessions
 
-Run folder: ~/.autoimprove/runs/YYYYMMDD-HHMMSS-<target-slug>/
+Run folder: ~/.autoimprove/ar-runs/YYYYMMDD-HHMMSS-<target-slug>/
 ```
 
 ## Notes
