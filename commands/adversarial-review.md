@@ -34,6 +34,29 @@ The skill runs the Enthusiast → Adversary → Judge chain inline, sequentially
 /adversarial-review https://github.com/org/repo/issues/225
 ```
 
+## Output
+
+Results appear after the full debate completes:
+
+- Confirmed findings count vs debunked count
+- Top confirmed findings at critical/high severity (title + one-line rationale)
+- Path to the full run folder
+
+Example:
+
+```
+Adversarial review complete.
+  Confirmed: 3 findings (1 critical, 2 high)
+  Debunked:  5 findings
+
+Top confirmed:
+  [CRITICAL] evaluate.sh exits 0 on missing jq — gates never fire
+  [HIGH]     Rolling baseline updated before gate check — allows ratchet bypass
+  [HIGH]     Theme cooldown not persisted across sessions
+
+Run folder: ~/.autoimprove/runs/20260401-103045-evaluate/
+```
+
 ## Notes
 
 - **Runs in foreground.** The E→A→J chain is sequential and blocking — results appear when the full debate completes.
