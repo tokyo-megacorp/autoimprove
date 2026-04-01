@@ -16,7 +16,6 @@ The skill runs the Enthusiast → Adversary → Judge chain inline, sequentially
 | `diff` | Same as no argument — current working-tree diff |
 | `<file-path>` | A single file (e.g., `scripts/evaluate.sh`) |
 | `pr <number>` | A GitHub PR by number (e.g., `pr 42`) — fetches the PR diff via `gh` |
-| `<github-issue-url>` | A GitHub issue URL — fetches the issue body and comments via `gh` |
 
 ## Usage Examples
 
@@ -29,9 +28,6 @@ The skill runs the Enthusiast → Adversary → Judge chain inline, sequentially
 
 # Review a GitHub PR
 /adversarial-review pr 42
-
-# Review a GitHub issue
-/adversarial-review https://github.com/org/repo/issues/225
 ```
 
 ## Output
@@ -60,7 +56,7 @@ Run folder: ~/.autoimprove/ar-runs/YYYYMMDD-HHMMSS-<target-slug>/
 ## Notes
 
 - **Runs in foreground.** The E→A→J chain is sequential and blocking — results appear when the full debate completes.
-- **Sequential internals are mandatory.** Enthusiast → Adversary → Judge must run in strict order with outputs passed forward between agents.
+- **Sequential internals are mandatory.** Enthusiast → Adversary → Judge must run sequentially, never in parallel, with outputs passed forward between agents.
 - Requires `gh` CLI for `pr <number>` and issue URL modes.
 
 ## Related Commands
