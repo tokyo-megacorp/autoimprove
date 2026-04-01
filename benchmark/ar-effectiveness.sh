@@ -1,14 +1,30 @@
 #!/usr/bin/env bash
 # ar-effectiveness.sh — Benchmark adversarial-review skill effectiveness
 # Emits: {"ar_precision": float, "ar_quality_score": int, "cases_run": int, "cases_passed": int}
-set -uo pipefail
+set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 GOLDEN_DIR="$DIR/benchmark/ar-golden"
 JUDGE_PROMPT_FILE="$DIR/benchmark/judge-prompt.txt"
+CLAUDE_BIN="${CLAUDE_BIN:-claude}"
+TMP_AR_OUTPUT="$(mktemp "${TMPDIR:-/tmp}/ar-output.XXXXXX")"
+TMP_DIFF=""
+
+cleanup() {
+  rm -f "$TMP_AR_OUTPUT"
+  if [ -n "$TMP_DIFF" ]; then
+    rm -f "$TMP_DIFF"
+  fi
+}
+
+run_claude() {
+  "$CLAUDE_BIN" --print --model "$1" -p "$2" 2>/dev/null || true
+}
+
+trap cleanup EXIT
 
 # --- Guard: claude CLI must be present ---
-if ! command -v claude &>/dev/null; then
+if ! command -v "$CLAUDE_BIN" >/dev/null 2>&1; then
   echo '{"ar_precision": -1, "ar_quality_score": -1, "error": "claude CLI not found"}'
   exit 0
 fi
@@ -34,10 +50,9 @@ if [ -d "$GOLDEN_DIR" ]; then
     total_cases=$((total_cases + 1))
 
     # Run AR on this diff
-    ar_output=$(claude --print --model haiku \
-      -p "Review this diff and list all bugs, issues, and improvements. Be thorough. Output one finding per line in format: severity:category:description
+    ar_output=$(run_claude haiku "Review this diff and list all bugs, issues, and improvements. Be thorough. Output one finding per line in format: severity:category:description
 
-$(cat "$diff_file")" 2>/dev/null || true)
+  $(cat "$diff_file")")
 
     # Fuzzy match: check how many expected category keywords appear in AR output
     total_expected=0
@@ -75,13 +90,12 @@ fi
 # Measurement 2: AR Quality (LLM-as-judge)
 # ============================================================
 ar_quality_score=-1
-TMP_AR_OUTPUT=$(mktemp /tmp/ar-output.XXXXXX)
 
 # Use case-01 as canonical input; fall back to a trivial diff if not present
 canonical_diff="$GOLDEN_DIR/case-01/diff.txt"
 if [ ! -f "$canonical_diff" ]; then
   # No golden cases yet — create an ephemeral minimal diff for judge evaluation
-  TMP_DIFF=$(mktemp /tmp/ar-diff.XXXXXX)
+  TMP_DIFF=$(mktemp "${TMPDIR:-/tmp}/ar-diff.XXXXXX")
   cat > "$TMP_DIFF" <<'EOF'
 diff --git a/foo.py b/foo.py
 index 0000000..1111111 100644
@@ -98,47 +112,30 @@ EOF
   canonical_diff="$TMP_DIFF"
 fi
 
-claude --print --model haiku \
-  -p "Review this diff and list all bugs, issues, and improvements. Be thorough. Output one finding per line in format: severity:category:description
+run_claude haiku "Review this diff and list all bugs, issues, and improvements. Be thorough. Output one finding per line in format: severity:category:description
 
-$(cat "$canonical_diff")" 2>/dev/null > "$TMP_AR_OUTPUT" || true
+$(cat "$canonical_diff")" > "$TMP_AR_OUTPUT"
 
 # Only run judge if we have a judge prompt and the AR produced output
 if [ -f "$JUDGE_PROMPT_FILE" ] && [ -s "$TMP_AR_OUTPUT" ]; then
   JUDGE_PROMPT=$(cat "$JUDGE_PROMPT_FILE")
   AR_OUTPUT=$(cat "$TMP_AR_OUTPUT")
 
-  judge_response=$(claude --print --model sonnet \
-    -p "${JUDGE_PROMPT}
+  judge_response=$(run_claude sonnet "${JUDGE_PROMPT}
 
-${AR_OUTPUT}" 2>/dev/null || true)
+${AR_OUTPUT}")
 
   # Extract "total" field from JSON response; tolerate non-JSON gracefully
-  extracted=$(echo "$judge_response" | \
-    python3 -c "
-import sys, json, re
-raw = sys.stdin.read()
-# Try strict JSON parse first
-try:
-    data = json.loads(raw)
-    print(int(data.get('total', -1)))
-    sys.exit(0)
-except Exception:
-    pass
-# Fallback: regex for \"total\": <number>
-m = re.search(r'[\"'\"'\"total[\"'\"'\"]\\s*:\\s*([0-9]+)', raw)
-if m:
-    print(m.group(1))
-else:
-    print(-1)
-" 2>/dev/null || echo "-1")
+    extracted=$(printf '%s' "$judge_response" | jq -r '.total // empty' 2>/dev/null || true)
+    if [ -z "$extracted" ]; then
+      extracted=$(printf '%s' "$judge_response" | grep -oE '"total"[[:space:]]*:[[:space:]]*[0-9]+' 2>/dev/null | grep -oE '[0-9]+' | head -1 || true)
+    fi
+    if [ -z "$extracted" ]; then
+      extracted="-1"
+    fi
 
   ar_quality_score="$extracted"
 fi
-
-# Cleanup
-rm -f "$TMP_AR_OUTPUT"
-[ -n "${TMP_DIFF:-}" ] && rm -f "$TMP_DIFF"
 
 # ============================================================
 # Output JSON

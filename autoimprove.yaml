@@ -8,6 +8,8 @@ budget:
 gates:
   - name: evaluate_tests
     command: bash test/evaluate/test-evaluate.sh
+  - name: ar_effectiveness_smoke
+    command: bash tests/test-ar-effectiveness.sh
 
 benchmarks:
   - name: self-metrics
