@@ -4,6 +4,7 @@ project:
 
 budget:
   max_experiments_per_session: 10
+  parallel_experiments: 1  # optional, default 1 (serial). Max 5 per UNBREAKABLE_RULES S3.
 
 gates:
   - name: evaluate_tests
