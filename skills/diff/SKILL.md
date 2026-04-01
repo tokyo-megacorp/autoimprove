@@ -164,12 +164,14 @@ Print only the file paths, one per line.
 
 ## 4d. `--kept` or `--range` — Aggregate mode
 
-When aggregating multiple experiments, generate a combined diff from the earliest to the latest
-commit in the set:
+When aggregating multiple experiments, generate a combined diff from the oldest selected
+experiment commit to the newest selected experiment commit. Take both hashes directly from the
+filtered experiment list; do not derive `FIRST_COMMIT` with `git log ... | tail -1`, because on a
+linear history that can walk all the way back to the repository's initial commit.
 
 ```bash
-FIRST_COMMIT=$(git log --oneline <hash_1> <hash_2> ... | tail -1 | awk '{print $1}')
-LAST_COMMIT=<most_recent_hash>
+FIRST_COMMIT=<oldest_selected_hash>
+LAST_COMMIT=<newest_selected_hash>
 git diff ${FIRST_COMMIT}^..${LAST_COMMIT} --color=never
 ```
 
