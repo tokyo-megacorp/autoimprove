@@ -158,7 +158,14 @@ This dedup is orchestrator-side only — the Adversary and Judge never see confi
 
 ## 3b. Spawn Adversary
 
-Mark progress: `TodoWrite([{id: "enthusiast", ..., status: "completed"}, {id: "adversary", content: "Adversary — challenge findings", status: "in_progress"}, {id: "judge", ..., status: "pending"}])`.
+Mark progress — update the Enthusiast title with the finding count:
+```
+TodoWrite([
+  {id: "enthusiast", content: "AR Round {ROUND}: Enthusiast — {NOVEL_FINDINGS.length} findings", status: "completed"},
+  {id: "adversary",  content: "AR Round {ROUND}: Adversary — challenging {NOVEL_FINDINGS.length} findings", status: "in_progress"},
+  {id: "judge",      content: "AR Round {ROUND}: Judge — rule on debate", status: "pending"}
+])
+```
 
 Use the Agent tool to spawn the `autoimprove:adversary` agent (`subagent_type: "autoimprove:adversary"`):
 
@@ -186,7 +193,14 @@ Only start this step after `ENTHUSIAST_OUTPUT` is fully available. Pass the full
 
 ## 3c. Spawn Judge
 
-Mark progress: `TodoWrite([{id: "enthusiast", ..., status: "completed"}, {id: "adversary", ..., status: "completed"}, {id: "judge", content: "Judge — rule on debate", status: "in_progress"}])`.
+Mark progress — update the Adversary title with the challenge count (`challenged_count` = verdicts where the Adversary pushed back, not confirmed):
+```
+TodoWrite([
+  {id: "enthusiast", content: "AR Round {ROUND}: Enthusiast — {NOVEL_FINDINGS.length} findings", status: "completed"},
+  {id: "adversary",  content: "AR Round {ROUND}: Adversary — {challenged_count} challenged", status: "completed"},
+  {id: "judge",      content: "AR Round {ROUND}: Judge — ruling on debate", status: "in_progress"}
+])
+```
 
 Use the Agent tool to spawn the `autoimprove:judge` agent (`subagent_type: "autoimprove:judge"`):
 
@@ -224,7 +238,14 @@ Only start this step after both `ENTHUSIAST_OUTPUT` and `ADVERSARY_OUTPUT` are c
 - If valid JSON with a `rulings` array → store as `JUDGE_OUTPUT` and continue.
 - If invalid JSON → re-prompt once. If still invalid → log `judge_malformed_json`, record all findings as `status: unresolved`, and end the debate loop.
 
-After storing `JUDGE_OUTPUT`, mark: `TodoWrite([{id: "enthusiast", ..., status: "completed"}, {id: "adversary", ..., status: "completed"}, {id: "judge", ..., status: "completed"}])`.
+After storing `JUDGE_OUTPUT`, mark all complete — update Judge title with confirmed/debunked counts (`confirmed_count` = rulings where `winner` is `"enthusiast"` or `"split"`; `debunked_count` = rulings where `winner` is `"adversary"`):
+```
+TodoWrite([
+  {id: "enthusiast", content: "AR Round {ROUND}: Enthusiast — {NOVEL_FINDINGS.length} findings", status: "completed"},
+  {id: "adversary",  content: "AR Round {ROUND}: Adversary — {challenged_count} challenged", status: "completed"},
+  {id: "judge",      content: "AR Round {ROUND}: Judge — {confirmed_count} confirmed, {debunked_count} debunked", status: "completed"}
+])
+```
 
 ## 3c.5. Model Escalation Check
 
