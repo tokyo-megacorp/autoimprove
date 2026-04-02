@@ -29,7 +29,22 @@ Run debate agents against curated challenges and score them with precision-weigh
 
 ---
 
-# 1. Parse Arguments
+Initialize progress tracking:
+```
+TodoWrite([
+  {id: "1", content: "🔍 Parse arguments", status: "pending"},
+  {id: "2", content: "📋 Load & filter manifest", status: "pending"},
+  {id: "3", content: "🔄 Run challenges", status: "pending"},
+  {id: "4", content: "📊 Aggregate & report", status: "pending"},
+  {id: "5", content: "🏷️ Log results", status: "pending"}
+])
+```
+
+---
+
+# 1. 🔍 Parse Arguments
+
+Mark step in progress: `TodoWrite([{id: "1", status: "in_progress"}])`
 
 - **suite**: "puzzles" (default) or "all"
 - **language**: filter to a specific language, or "all" (default)
@@ -38,9 +53,13 @@ Run debate agents against curated challenges and score them with precision-weigh
 - **id**: run a single specific challenge by its manifest ID (e.g., `--id python/off-by-one`); overrides all other filters
 - **dry-run**: list which challenges would be run without actually executing them; prints the filtered set and stops
 
+Mark complete: `TodoWrite([{id: "1", status: "completed"}])`
+
 ---
 
-# 2. Load Manifest
+# 2. 📋 Load Manifest
+
+Mark step in progress: `TodoWrite([{id: "2", status: "in_progress"}])`
 
 Read `challenges/manifest.json` from the project root.
 
@@ -69,13 +88,17 @@ Otherwise, report how many challenges will be run:
 Running {N} challenges ({languages})...
 ```
 
+Mark complete: `TodoWrite([{id: "2", status: "completed"}])`
+
 ---
 
-# 3. Run Each Challenge
+# 3. 🔄 Run Each Challenge
+
+Mark step in progress: `TodoWrite([{id: "3", status: "in_progress"}])`
 
 For each challenge in the filtered set, run **sequentially** (not in parallel) to avoid context flooding from concurrent debate pipelines. If the set is large (>5 challenges), note estimated wall time: roughly 2–4 min per challenge.
 
-## 3a. Read Challenge Code
+## 3a. 🔍 Read Challenge Code
 
 Read the challenge file (e.g., `challenges/python/off-by-one/challenge.py`).
 
@@ -85,7 +108,7 @@ The file extension tells you the language:
 - `.go` → Go
 - `.rs` → Rust
 
-## 3b. Run Single-Pass Adversarial Review
+## 3b. 🛠️ Run Single-Pass Adversarial Review
 
 Spawn the adversarial-review pipeline in **single-pass mode** (1 round, not iterative) against the challenge file. This means:
 
@@ -99,7 +122,7 @@ The key outputs needed for scoring are:
 - `ENTHUSIAST_FINDINGS` — the raw findings array from the Enthusiast
 - `JUDGE_RULINGS` — the verdict array from the Judge
 
-## 3c. Score Against Answer Key
+## 3c. ✅ Score Against Answer Key
 
 Prepare a combined JSON file with the Judge's rulings AND the Enthusiast's findings (the scoring script needs both to match file/line/type):
 
@@ -126,16 +149,23 @@ rm "$debate_tmpfile"
 
 Parse the F1 score from the output JSON.
 
-## 3d. Report Result
+## 3d. 📋 Report Result
 
 Print per-challenge result:
 ```
   {id}: F1={f1} (P={precision} R={recall}) TP={tp} FP={fp} FN={fn} {PASS|FAIL}
 ```
 
+After each challenge completes, update progress:
+`TodoWrite([{id: "3", content: "🔄 Run challenges — {N}/{total} done"}])`
+
+After all challenges complete: `TodoWrite([{id: "3", status: "completed", content: "🔄 Run challenges — {total}/{total} done"}])`
+
 ---
 
-# 4. Aggregate and Report
+# 4. 📊 Aggregate and Report
+
+Mark step in progress: `TodoWrite([{id: "4", status: "in_progress"}])`
 
 After all challenges complete:
 
@@ -157,9 +187,13 @@ By language:    python 2/2 (avg F1: 0.90)  go 1/2 (avg F1: 0.60)
 By difficulty:  easy 3/3 (avg F1: 0.93)    medium 0/1 (avg F1: 0.40)
 ```
 
+Mark complete: `TodoWrite([{id: "4", status: "completed", content: "📊 Aggregate & report — {passed}/{total} passed, avg F1: {avg_f1}"}])`
+
 ---
 
-# 5. Log Results
+# 5. 🏷️ Log Results
+
+Mark step in progress: `TodoWrite([{id: "5", status: "in_progress"}])`
 
 Append a summary line to `experiments.tsv` (if it exists) with `type: challenge`:
 
@@ -168,6 +202,8 @@ Append a summary line to `experiments.tsv` (if it exists) with `type: challenge`
 ```
 
 This enables longitudinal tracking of agent accuracy over time.
+
+Mark complete: `TodoWrite([{id: "5", status: "completed"}])`
 
 ---
 

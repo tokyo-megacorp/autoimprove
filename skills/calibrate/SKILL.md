@@ -13,7 +13,23 @@ Run cross-model calibration: compare Opus (gold standard) vs Haiku (cheap) on th
 
 ---
 
-# Step 1: Parse Arguments
+Initialize progress tracking:
+```
+TodoWrite([
+  {id: "1", content: "🔍 Parse arguments", status: "pending"},
+  {id: "2", content: "📋 Gather target input", status: "pending"},
+  {id: "3", content: "🔄 Run Opus & Haiku in parallel", status: "pending"},
+  {id: "4", content: "📊 Run Sonnet evaluator", status: "pending"},
+  {id: "5", content: "📋 Display gap report", status: "pending"},
+  {id: "6", content: "🏷️ Store LCM signal", status: "pending"}
+])
+```
+
+---
+
+# Step 1: 🔍 Parse Arguments
+
+Mark step in progress: `TodoWrite([{id: "1", status: "in_progress"}])`
 
 From the user's input or the skill arguments, extract:
 - `SKILL_NAME`: the skill to calibrate (e.g., `adversarial-review`)
@@ -27,9 +43,13 @@ Phase 1 calibration only supports `adversarial-review`. Generic skill wrapping i
 
 If no SKILL_NAME is provided, default to `adversarial-review`.
 
+Mark complete: `TodoWrite([{id: "1", status: "completed"}])`
+
 ---
 
-# Step 2: Gather Target Input
+# Step 2: 📋 Gather Target Input
+
+Mark step in progress: `TodoWrite([{id: "2", status: "in_progress"}])`
 
 Collect the content to review and store as TARGET_INPUT.
 
@@ -48,9 +68,13 @@ Collect the content to review and store as TARGET_INPUT.
 
 Store the gathered content as TARGET_INPUT.
 
+Mark complete: `TodoWrite([{id: "2", status: "completed"}])`
+
 ---
 
-# Step 3: Run AR with Opus and Haiku in PARALLEL
+# Step 3: 🔄 Run AR with Opus and Haiku in PARALLEL
+
+Mark step in progress: `TodoWrite([{id: "3", status: "in_progress"}])`
 
 CRITICAL: Do NOT call `Skill('autoimprove:adversarial-review')` — nested skill invocation does not support model override. Instead, spawn two agents with the AR steps inlined.
 
@@ -124,9 +148,13 @@ prompt: |
 
 Collect outputs as OPUS_RESULT and HAIKU_RESULT.
 
+Mark complete: `TodoWrite([{id: "3", status: "completed"}])`
+
 ---
 
-# Step 4: Run Sonnet Evaluator
+# Step 4: 📊 Run Sonnet Evaluator
+
+Mark step in progress: `TodoWrite([{id: "4", status: "in_progress"}])`
 
 Spawn a Sonnet agent to compare the two outputs:
 
@@ -192,9 +220,13 @@ Store result as GAP_REPORT.
 
 **If Sonnet output is not valid JSON** (malformed, wrapped in fences, truncated): re-prompt once with: "Your response was not valid JSON. Return only the corrected JSON object, no markdown fences." If still invalid, store a signal with `tags: ['signal:calibration', 'error:evaluator-malformed']` and output: "Calibration aborted — evaluator returned malformed JSON. Raw output logged." then stop.
 
+Mark complete: `TodoWrite([{id: "4", status: "completed"}])`
+
 ---
 
-# Step 5: Display Gap Report
+# Step 5: 📋 Display Gap Report
+
+Mark step in progress: `TodoWrite([{id: "5", status: "in_progress"}])`
 
 Parse GAP_REPORT and render the following output:
 
@@ -232,9 +264,13 @@ Parse GAP_REPORT and render the following output:
 *Results are diagnostic only. gap_score is NOT a benchmark metric.*
 ```
 
+Mark complete: `TodoWrite([{id: "5", status: "completed", content: "📋 Display gap report — gap {gap_score}/10, find rate {haiku_find_rate_pct}%"}])`
+
 ---
 
-# Step 6: Store LCM Signal
+# Step 6: 🏷️ Store LCM Signal
+
+Mark step in progress: `TodoWrite([{id: "6", status: "in_progress"}])`
 
 Store the calibration result for trend tracking and the autoimprove learning loop.
 
@@ -254,6 +290,8 @@ content: |
 - Create the directory if it does not exist: `mkdir -p ~/.autoimprove/calibration`
 - Write file: `~/.autoimprove/calibration/{YYYY-MM-DD}-ar-calibration.json`
 - Content: full GAP_REPORT JSON
+
+Mark complete: `TodoWrite([{id: "6", status: "completed"}])`
 
 ---
 
