@@ -75,7 +75,9 @@ telemetry failure must never block the review.
 
 **Initialize model state:**
 ```
-ROUND_MODEL = "haiku"   # default; Judge may escalate after each round
+ROUND_MODEL = "haiku"        # current round model
+MODEL_LADDER = ["haiku", "sonnet", "opus"]   # escalation order
+ROUND_YIELDS = []            # NOVEL_FINDINGS.length per round, for near-convergence detection
 ```
 
 **Initialize progress todos** (always — even if telemetry folder failed):
@@ -279,6 +281,8 @@ Log: "Round {N}→{N+1}: model {'escalated to' if sonnet else 'reset to'} {ROUND
 
 **Cost guard:** if `ROUND_MODEL == "sonnet"` for 3 consecutive rounds, log a warning: `"[COST WARNING] Sonnet active for 3 consecutive rounds. Review may be expensive."` but do NOT override either escalation path.
 
+**Note:** Paths A and B handle within-round quality escalation (anomaly or debate complexity). The convergence/near-convergence escalation in step 3d is separate — it triggers when a model tier is exhausted. Both can fire in the same transition; convergence escalation takes priority for setting the next model tier.
+
 Use `ROUND_MODEL` when spawning Enthusiast, Adversary, and Judge in the **next** round (pass as `model: ROUND_MODEL` in each Agent call).
 
 ## 3d. Check Convergence
@@ -298,7 +302,43 @@ Convergence is only meaningful from round 2 onward.
 
 **Round 1 guard:** If `round == 1` and Judge returned `convergence: true` → treat as `false`. Log: `"convergence: true ignored on round 1."` Continue to round 2.
 
-**Stop condition:** Stop the loop early when `converged = true` (either path above). Record `converged_at_round = round`.
+**Append yield:** After computing `converged`, append `NOVEL_FINDINGS.length` to `ROUND_YIELDS`.
+
+**Model escalation on convergence or near-convergence:**
+
+Before stopping, check whether the current model is exhausted or nearing exhaustion:
+
+```
+current_yield = ROUND_YIELDS[-1]
+prev_yield    = ROUND_YIELDS[-2] if len(ROUND_YIELDS) >= 2 else None
+
+near_convergence = (
+  current_yield <= 2 AND
+  prev_yield IS NOT None AND
+  current_yield < prev_yield * 0.4   # yield dropped >60% from prior round
+)
+
+if converged OR near_convergence:
+  next_model = MODEL_LADDER[MODEL_LADDER.index(ROUND_MODEL) + 1]  # next in ladder
+
+  if ROUND_MODEL == "opus":
+    # Opus converged = true final stop
+    converged = true  # stop loop
+  else:
+    ROUND_MODEL = next_model
+    converged = false   # reset — this model had more to say
+    Log: "Round {N}: {'converged' if converged else 'near-convergence'} on {prev_model} (yield={current_yield}) → escalating to {next_model}"
+    # Re-emit todos as pending for the new model pass
+    TodoWrite([
+      {id: "enthusiast", content: "🔍 AR Round {N+1}: Enthusiast", status: "pending"},
+      {id: "adversary",  content: "⚔️ AR Round {N+1}: Adversary",  status: "pending"},
+      {id: "judge",      content: "⚖️ AR Round {N+1}: Judge",      status: "pending"}
+    ])
+```
+
+**Escalation ladder:** haiku → sonnet → opus. Each model sees only findings NOT in `CONFIRMED_LOCATIONS` — the blocklist accumulates across all rounds and models, preventing re-raising at every level.
+
+**Stop condition:** Stop when `converged = true` AND `ROUND_MODEL == "opus"`, OR when `round > max_rounds`. Record `converged_at_round = round`.
 
 ## 3e. Store Round
 
