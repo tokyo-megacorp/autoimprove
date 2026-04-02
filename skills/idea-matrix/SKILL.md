@@ -21,7 +21,7 @@ description: |
   <commentary>"Convergence report" is a direct trigger phrase.</commentary>
   </example>
 argument-hint: "<problem statement> + <options list>"
-allowed-tools: [Read, Glob, Grep, Bash, Agent]
+allowed-tools: [Read, Glob, Grep, Bash, Agent, TodoWrite]
 ---
 
 <SKILL-GUARD>
@@ -84,6 +84,16 @@ From the options list, generate exactly 9 exploration cells. The matrix is **opt
 - Cell 9: "Contrarian approach" — the agent challenges all 3 options and proposes something fundamentally different
 
 Store as `CELLS[1..9]`, each with a label and assignment description.
+
+**Initialize progress tracking:**
+```
+TodoWrite([
+  {id: "cell-1", content: "Cell 1 — {CELL_LABEL}", status: "pending"},
+  {id: "cell-2", content: "Cell 2 — {CELL_LABEL}", status: "pending"},
+  ...repeat for all 9 cells...
+  {id: "devil", content: "Devil's advocate — challenge winner", status: "pending"}
+])
+```
 
 ---
 
@@ -176,16 +186,44 @@ Scoring guide:
 - Model: `haiku`
 - Tools: none (agents reason about pre-digested context only)
 
+**Cells 8 and 9 use differentiated prompts.** When the user provided exactly 3 base options, append this to the cell 8 and 9 prompts instead of the generic Instructions block:
+
+*Cell 8 — Best-of-breed remix:*
+```
+## Your Assignment
+Propose a concrete hybrid that combines the strongest elements of options A, B, and C.
+Do NOT score the existing options — design a new option that outperforms all three.
+Anchor your proposal in the architecture brief: reference specific files, patterns, or constraints.
+Your "scores" should reflect the proposed hybrid, not any original option.
+Your "recommendation" must be a concrete first implementation step for your proposal.
+```
+
+*Cell 9 — Contrarian:*
+```
+## Your Assignment
+Challenge the framing. All three options may be solving the wrong problem.
+Propose a fundamentally different approach that none of options A, B, or C explored.
+Be specific: name the assumption all three options share and explain why it's wrong.
+Your "scores" should reflect your contrarian proposal, not any original option.
+Your "verdict" must state what you'd do instead and why it dominates.
+```
+
+**Mark all cells in_progress before dispatching** (they all dispatch simultaneously):
+```
+TodoWrite([{id: "cell-1", status: "in_progress"}, ..., {id: "cell-9", status: "in_progress"}])
+```
+
 **Dispatch all 9 agents in a single parallel batch.** Do NOT dispatch sequentially.
 
 ---
 
 # 5. Collect and Validate Results
 
-As agents return, parse each result:
+As agents return, validate and track each result:
 
-- **Valid JSON** with `scores`, `dealbreaker`, `verdict` fields: store in `RESULTS[cell_number]`
-- **Invalid JSON**: re-prompt once: `"Your response was not valid JSON. Return only the corrected JSON object."` If still invalid, record as `{ "cell": N, "label": "...", "error": "malformed output" }` and continue.
+- **Sparse-output check:** if the raw response is ≤ 50 characters, re-prompt once: `"Your response appears incomplete. Return the full JSON object with all fields — do not truncate."` If still sparse, record `error: "sparse_output"` and continue.
+- **Valid JSON** with `scores`, `dealbreaker`, `verdict` fields: store in `RESULTS[cell_number]`. Mark cell completed: `TodoWrite([{id: "cell-N", status: "completed"}])`.
+- **Invalid JSON**: re-prompt once: `"Your response was not valid JSON. Return only the corrected JSON object."` If still invalid, record as `{ "cell": N, "label": "...", "error": "malformed_json" }` and continue.
 - **Score validation**: All scores must be 1-5. If out of range, clamp to nearest valid value.
 
 Wait for all 9 agents to complete before proceeding to synthesis.
@@ -231,7 +269,13 @@ This reveals which dimensions are consistent across options (all cells score sim
 
 **6c. Identify Convergence**
 
-Rank cells by composite score (average of all 4 dimensions). Then analyze:
+Rank cells by composite score (average of all 4 dimensions). Compute the **confidence margin** = winner composite − runner-up composite.
+
+- **margin ≥ 0.5** → clear winner, proceed normally
+- **0.3 ≤ margin < 0.5** → moderate confidence — note it in the report
+- **margin < 0.3** → **narrow win** — do NOT declare a single winner. Present top 2 as tied candidates with the note: "Margin too small to distinguish — consider running the matrix with sharper option differentiation or additional constraints." Set `verdict_type: "narrow_win"`.
+
+Then analyze:
 - **Top scorer**: Which cell has the highest composite? Is it a solo, hybrid, or creative option?
 - **Dealbreaker filter**: Eliminate any cells flagged as dealbreakers
 - **Score band distribution**: Count cells by band — strong (4-5 avg), neutral (3 avg), weak (1-2 avg).
@@ -284,6 +328,43 @@ When this protocol triggers:
 - {high-scoring aspect from non-winning cells that would strengthen the winner}
 ```
 
+**6d.5. Devil's Advocate Challenge**
+
+Skip this step if `verdict_type` is `no_clear_winner` or `narrow_win` (no winner to challenge).
+
+Mark progress: `TodoWrite([{id: "devil", status: "in_progress"}])`.
+
+Spawn 1 Haiku agent to challenge the winning option:
+
+```
+You are a devil's advocate. The following design option was selected as the winner
+of an idea matrix evaluation. Your job is NOT to score it — your job is to find its
+single most credible failure mode.
+
+## Problem
+{PROBLEM}
+
+## Winner
+{WINNER_LABEL}: {WINNER_DESCRIPTION}
+Score: {WINNER_COMPOSITE}/5 — {WINNER_VERDICT}
+
+## Architecture Brief
+{BRIEF}
+
+Find the ONE thing most likely to make this choice fail in practice.
+Be specific: cite the architecture brief, name exact integration points or constraints.
+Vague risks ("it might not scale") are worthless — name the specific failure.
+
+Output as JSON:
+{
+  "challenge": "<one sentence: the credible failure mode>",
+  "evidence": "<specific detail from the brief that makes this a real risk>",
+  "mitigation": "<concrete first step to reduce this risk before committing to the winner>"
+}
+```
+
+Parse the response. If valid: add as `"devil_advocate"` to the convergence report under the winner section. If malformed: skip silently. Mark: `TodoWrite([{id: "devil", status: "completed"}])`.
+
 **6e. Output Structured JSON**
 
 After the human-readable report, output the full structured data:
@@ -320,9 +401,29 @@ After the human-readable report, output the full structured data:
     "required_mitigations": ["<blocking risks/conflicts from non-winning cells that apply to the winner>"],
     "recommended_improvements": ["<non-blocking insights from non-winning cells worth carrying forward>"]
   },
-  "errors": <count of malformed agent outputs>
+  "errors": <count of malformed agent outputs>,
+  "confidence_margin": <winner_composite - runner_up_composite>,
+  "devil_advocate": {
+    "challenge": "<failure mode>",
+    "evidence": "<specific detail>",
+    "mitigation": "<first step>"
+  }
 }
 ```
+
+---
+
+# 6f. Self-Assessment
+
+```
+## Self-Assessment
+- Model used: haiku (9 cells) + haiku (devil's advocate)
+- Codebase complexity: [1=trivial config, 3=moderate, 5=complex multi-subsystem]
+- Could synthesis (step 6) have used a cheaper model? [yes/no + one sentence]
+- Error rate: {N}/9 cells had malformed or sparse output
+```
+
+Populate honestly — this data feeds model-selection calibration.
 
 ---
 
