@@ -23,14 +23,25 @@ description: |
 
   Do NOT use when options are crisp → /idea-matrix. Do NOT use for past decisions → /decisions. Do NOT pressure-test a chosen option → /challenge.
 argument-hint: "<rough problem description or topic>"
-allowed-tools: []
+allowed-tools: [TodoWrite, Skill]
 ---
 
 <SKILL-GUARD>
 You are NOW executing the matrix-draft skill. Do NOT invoke this skill again.
 </SKILL-GUARD>
 
-Pre-process a fuzzy problem into a crisp `/idea-matrix` input. No tools — all reasoning from conversation context.
+Pre-process a fuzzy problem into a crisp `/idea-matrix` input. Ends with a direct handoff to `/idea-matrix` unless the user opts out.
+
+**Initialize progress tracking:**
+```
+TodoWrite([
+  {id: "sharpen",     content: "Step 1 — Sharpen the problem statement", status: "pending"},
+  {id: "surface",     content: "Step 2 — Surface 3–5 distinct options",   status: "pending"},
+  {id: "feasibility", content: "Step 3 — Quick feasibility check",         status: "pending"},
+  {id: "output",      content: "Step 4 — Output ready-to-paste block",    status: "pending"},
+  {id: "handoff",     content: "Step 5 — Hand off to /idea-matrix",       status: "pending"}
+])
+```
 
 ---
 
@@ -41,27 +52,39 @@ Ask ONE clarifying question if the problem is vague:
 - Goal ("make it faster") → "What are you choosing between to get there?"
 - Solution ("use caching") → "What problem does this solve, and are there alternatives?"
 
+Mark: `TodoWrite([{id: "sharpen", status: "in_progress"}])`
+
 Write the problem as one sentence: **"How should we [verb] [object] given [constraint]?"**
 
 Confirm: "Is this the decision you're trying to make?"
+
+Mark: `TodoWrite([{id: "sharpen", status: "completed"}])`
 
 ---
 
 # 2. Surface 3–5 Distinct Options
 
+Mark: `TodoWrite([{id: "surface", status: "in_progress"}])`
+
 **Differentiation test:** Each option must take a meaningfully different approach — not just vary a parameter. If two options differ only in degree ("same thing but faster/simpler"), merge them or replace one.
 
 If fewer than 3 distinct options exist, ask: "What would you do if your first choice was impossible?" This reliably surfaces a third path.
 
+**Bets language is required.** Each option description must end with "bets on X" — what assumption must be true for this option to win. This forces genuine differentiation: if two options make the same bet, they're the same option.
+
 ```
-A: <short label> — <what it does and what it bets on>
-B: <short label> — <what it does and what it bets on>
-C: <short label> — <what it does and what it bets on>
+A: <short label> — <what it does> — bets on <core assumption>
+B: <short label> — <what it does> — bets on <core assumption>
+C: <short label> — <what it does> — bets on <core assumption>
 ```
+
+Mark: `TodoWrite([{id: "surface", status: "completed"}])`
 
 ---
 
 # 3. Quick Feasibility Check
+
+Mark: `TodoWrite([{id: "feasibility", status: "in_progress"}])`
 
 For each option, flag obvious blockers before spawning 9 haiku agents:
 - Technically impossible given the current stack? → `[BLOCKED: reason]`
@@ -69,20 +92,47 @@ For each option, flag obvious blockers before spawning 9 haiku agents:
 
 Replace or remove blocked options. If all pass: "All options are feasible — ready to run the matrix."
 
+Mark: `TodoWrite([{id: "feasibility", status: "completed"}])`
+
 ---
 
 # 4. Output Ready-to-Paste Block
 
+Mark: `TodoWrite([{id: "output", status: "in_progress"}])`
+
+**Pre-flight self-check (do this before printing — do not show to user):**
+1. Does each option end with "bets on X"? If not, add it.
+2. Are the bets genuinely different? If two options make the same bet, merge them.
+3. Is the constraint in the problem statement specific (not "our current stack")? If not, tighten it.
+4. Are there 3–5 options (not 2, not 6+)?
+
+Only print the block after the pre-flight passes.
+
 ```
-Problem: <one-sentence problem statement>
+Problem: <one-sentence: "How should we [verb] [object] given [specific constraint]?">
 
 Options:
-A: <label> — <description>
-B: <label> — <description>
-C: <label> — <description>
+A: <label> — <what it does> — bets on <core assumption>
+B: <label> — <what it does> — bets on <core assumption>
+C: <label> — <what it does> — bets on <core assumption>
 ```
 
-Then: "Run `/idea-matrix` with the block above, or adjust any option before proceeding."
+Mark: `TodoWrite([{id: "output", status: "completed"}])`
+
+# 5. Direct Handoff to /idea-matrix
+
+Mark: `TodoWrite([{id: "handoff", status: "in_progress"}])`
+
+After printing the block, ask:
+
+```
+Ready to run the matrix now? [Y/n]
+```
+
+- **If yes (or no answer):** invoke `/idea-matrix` immediately using the Skill tool with the ready-to-paste block as arguments. Do NOT ask the user to copy-paste it.
+- **If no:** print "Run `/idea-matrix` with the block above when ready." and stop.
+
+Mark: `TodoWrite([{id: "handoff", status: "completed"}])`
 
 ---
 
@@ -90,6 +140,7 @@ Then: "Run `/idea-matrix` with the block above, or adjust any option before proc
 
 - **Stay under 5 exchanges.** If clarification takes more than 2 back-and-forths, tell the user to narrow scope first.
 - **Don't pre-score options.** Evaluation is idea-matrix's job — this skill only frames the question well.
+- **Bets language is load-bearing.** "Option A bets on X" makes options mutually exclusive by construction — if two options share a bet, the matrix won't differentiate them.
 
 ---
 
