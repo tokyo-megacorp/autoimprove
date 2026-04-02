@@ -81,9 +81,9 @@ ROUND_MODEL = "haiku"   # default; Judge may escalate after each round
 **Initialize progress todos** (always — even if telemetry folder failed):
 ```
 TodoWrite([
-  {id: "enthusiast", content: "Enthusiast — surface findings", status: "pending"},
-  {id: "adversary",  content: "Adversary — challenge findings", status: "pending"},
-  {id: "judge",      content: "Judge — rule on debate",         status: "pending"}
+  {id: "enthusiast", content: "🔍 Enthusiast — surface findings", status: "pending"},
+  {id: "adversary",  content: "⚔️ Adversary — challenge findings", status: "pending"},
+  {id: "judge",      content: "⚖️ Judge — rule on debate",         status: "pending"}
 ])
 ```
 For round 2+, re-emit TodoWrite with all three reset to `pending` before starting the new round.
@@ -108,7 +108,7 @@ For each round:
 
 ## 3a. Spawn Enthusiast
 
-Mark progress: `TodoWrite([{id: "enthusiast", content: "Enthusiast — surface findings", status: "in_progress"}, ...])`  (keep adversary + judge as pending).
+Mark progress: `TodoWrite([{id: "enthusiast", content: "🔍 Enthusiast — surface findings", status: "in_progress"}, ...])`  (keep adversary + judge as pending).
 
 **Before spawning (round > 1):** Build the `CONFIRMED_LOCATIONS` set from all prior rounds:
 - Extract every `(file, line)` tuple from rulings where `winner = "enthusiast"` or `winner = "split"` across all `ROUNDS`.
@@ -161,9 +161,9 @@ This dedup is orchestrator-side only — the Adversary and Judge never see confi
 Mark progress — update the Enthusiast title with the finding count:
 ```
 TodoWrite([
-  {id: "enthusiast", content: "AR Round {ROUND}: Enthusiast — {NOVEL_FINDINGS.length} findings", status: "completed"},
-  {id: "adversary",  content: "AR Round {ROUND}: Adversary — challenging {NOVEL_FINDINGS.length} findings", status: "in_progress"},
-  {id: "judge",      content: "AR Round {ROUND}: Judge — rule on debate", status: "pending"}
+  {id: "enthusiast", content: "🔍 AR Round {ROUND}: Enthusiast — {NOVEL_FINDINGS.length} findings", status: "completed"},
+  {id: "adversary",  content: "⚔️ AR Round {ROUND}: Adversary — challenging {NOVEL_FINDINGS.length} findings", status: "in_progress"},
+  {id: "judge",      content: "⚖️ AR Round {ROUND}: Judge — rule on debate", status: "pending"}
 ])
 ```
 
@@ -196,9 +196,9 @@ Only start this step after `ENTHUSIAST_OUTPUT` is fully available. Pass the full
 Mark progress — update the Adversary title with the challenge count (`challenged_count` = verdicts where the Adversary pushed back, not confirmed):
 ```
 TodoWrite([
-  {id: "enthusiast", content: "AR Round {ROUND}: Enthusiast — {NOVEL_FINDINGS.length} findings", status: "completed"},
-  {id: "adversary",  content: "AR Round {ROUND}: Adversary — {challenged_count} challenged", status: "completed"},
-  {id: "judge",      content: "AR Round {ROUND}: Judge — ruling on debate", status: "in_progress"}
+  {id: "enthusiast", content: "🔍 AR Round {ROUND}: Enthusiast — {NOVEL_FINDINGS.length} findings", status: "completed"},
+  {id: "adversary",  content: "⚔️ AR Round {ROUND}: Adversary — {challenged_count} challenged", status: "completed"},
+  {id: "judge",      content: "⚖️ AR Round {ROUND}: Judge — ruling on debate", status: "in_progress"}
 ])
 ```
 
@@ -241,9 +241,9 @@ Only start this step after both `ENTHUSIAST_OUTPUT` and `ADVERSARY_OUTPUT` are c
 After storing `JUDGE_OUTPUT`, mark all complete — update Judge title with confirmed/debunked counts (`confirmed_count` = rulings where `winner` is `"enthusiast"` or `"split"`; `debunked_count` = rulings where `winner` is `"adversary"`):
 ```
 TodoWrite([
-  {id: "enthusiast", content: "AR Round {ROUND}: Enthusiast — {NOVEL_FINDINGS.length} findings", status: "completed"},
-  {id: "adversary",  content: "AR Round {ROUND}: Adversary — {challenged_count} challenged", status: "completed"},
-  {id: "judge",      content: "AR Round {ROUND}: Judge — {confirmed_count} confirmed, {debunked_count} debunked", status: "completed"}
+  {id: "enthusiast", content: "🔍 AR Round {ROUND}: Enthusiast — {NOVEL_FINDINGS.length} findings", status: "completed"},
+  {id: "adversary",  content: "⚔️ AR Round {ROUND}: Adversary — {challenged_count} challenged", status: "completed"},
+  {id: "judge",      content: "⚖️ AR Round {ROUND}: Judge — {confirmed_count} confirmed, {debunked_count} debunked", status: "completed"}
 ])
 ```
 
