@@ -32,6 +32,24 @@ If `--experiments N` was passed, use N as `max_experiments_per_session`. If `--t
 
 ---
 
+Initialize progress tracking at the start of the session:
+
+```
+TodoWrite([
+  {id: "prereqs",   content: "✅ Prerequisites check",          status: "pending"},
+  {id: "config",    content: "📋 Read config + build eval JSON", status: "pending"},
+  {id: "baseline",  content: "📊 Capture baseline metrics",      status: "pending"},
+  {id: "state",     content: "🔄 Load state + session TaskTree", status: "pending"},
+  {id: "harvest",   content: "🔍 Harvest signals",               status: "pending"},
+  {id: "preflight", content: "✅ Preflight: validate benchmarks", status: "pending"},
+  {id: "tasks",     content: "🎯 Pre-create experiment tasks",   status: "pending"},
+  {id: "loop",      content: "⚗️ Experiment loop",               status: "pending"},
+  {id: "report",    content: "📋 Session report",                status: "pending"}
+])
+```
+
+---
+
 # 1. Prerequisites Check
 
 Verify the environment before anything else:
@@ -47,6 +65,10 @@ PROJECT_ROOT=$(pwd)   # capture now — used when calling evaluate.sh from insid
 ```
 
 If any check fails, stop immediately and tell the user what's missing.
+
+```
+TodoWrite([{id: "prereqs", content: "✅ Prerequisites check", status: "completed"}])
+```
 
 ---
 
@@ -98,6 +120,10 @@ mkdir -p experiments
 ```
 Then write `experiments/evaluate-config.json`.
 
+```
+TodoWrite([{id: "config", content: "📋 Read config + build eval JSON", status: "completed"}])
+```
+
 ## 2c. Capture Baseline
 
 ```bash
@@ -112,6 +138,10 @@ Parse it. If any gate failed, stop — the project must be in a passing state be
 Save metrics as both baselines (format: `{metrics: {...}, sha: "<HEAD>", timestamp: "<ISO>"}`):
 - `experiments/epoch-baseline.json` — frozen for the session, never updated
 - `experiments/rolling-baseline.json` — updated after each KEEP
+
+```
+TodoWrite([{id: "baseline", content: "📊 Capture baseline metrics", status: "completed"}])
+```
 
 ## 2d. Load or Create State
 
@@ -158,6 +188,10 @@ TaskUpdate(taskId: SETUP_TASK_ID, status: "in_progress")
 ```
 
 The setup task covers steps 2a through 2h. Mark it completed after preflight (2h) succeeds.
+
+```
+TodoWrite([{id: "state", content: "🔄 Load state + session TaskTree", status: "completed"}])
+```
 
 ## 2e. Load Experiment Log
 
@@ -225,6 +259,10 @@ if [ -n "$HIGH_THEME" ]; then
 fi
 ```
 
+```
+TodoWrite([{id: "harvest", content: "🔍 Harvest signals", status: "completed"}])
+```
+
 ---
 
 ## 2h. Pre-flight: Validate benchmarks
@@ -242,6 +280,7 @@ Mark setup complete:
 
 ```
 TaskUpdate(taskId: SETUP_TASK_ID, status: "completed", metadata: {baseline_sha: "<HEAD>"})
+TodoWrite([{id: "preflight", content: "✅ Preflight: validate benchmarks", status: "completed"}])
 ```
 
 ---
@@ -289,11 +328,27 @@ TaskUpdate(taskId: REPORT_TASK_ID, addBlockedBy: [PREV_TASK_ID])
 
 If zero experiment tasks were created (all themes stagnated/on cooldown), skip directly to Session End.
 
+```
+TodoWrite([
+  {id: "tasks", content: "🎯 Pre-create experiment tasks", status: "completed"},
+  {id: "loop",  content: "⚗️ Experiment loop",             status: "in_progress"}
+])
+```
+
 ---
 
 # 3. Experiment Loop
 
 Read `references/loop.md` and `references/tasktree.md`, then execute the full experiment loop (sections 3a–3o) and session end (section 4). Session state lives in TaskTree + experiments.tsv. The orchestrator manages task lifecycle and delegates individual experiments to Agent subagents. See `references/tasktree.md` for the TaskTree protocol.
+
+After the loop completes and the session report is generated, update todos with final counts:
+
+```
+TodoWrite([
+  {id: "loop",   content: "⚗️ Experiment loop — <K> kept, <D> discarded", status: "completed"},
+  {id: "report", content: "📋 Session report",                             status: "completed"}
+])
+```
 
 ---
 

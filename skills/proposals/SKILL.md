@@ -40,6 +40,19 @@ Parse the subcommand passed by the user:
 - `reject <N> [--reason TEXT]` — reject proposal #N permanently
 - `defer <N> [--until TEXT]` — defer proposal #N without rejecting (optional context)
 
+Initialize progress tracking:
+
+```
+TodoWrite([
+  {id: "prereqs",  content: "✅ Prerequisites check",         status: "pending"},
+  {id: "locate",   content: "🔍 Locate proposal files",       status: "pending"},
+  {id: "load",     content: "📋 Load decisions file",         status: "pending"},
+  {id: "parse",    content: "🔍 Read and parse proposals",    status: "pending"},
+  {id: "classify", content: "📊 Classify by decision status", status: "pending"},
+  {id: "action",   content: "🛠️ Execute subcommand",          status: "pending"}
+])
+```
+
 ---
 
 # 1. Prerequisites Check
@@ -50,9 +63,13 @@ test -f autoimprove.yaml || echo "MISSING"
 
 If missing, print: `autoimprove is not initialized here. Run /autoimprove init.` and stop.
 
+```
+TodoWrite([{id: "prereqs", content: "✅ Prerequisites check", status: "completed"}])
+```
+
 ---
 
-# 2. Locate Proposal Files
+# 2. 🔍 Locate Proposal Files
 
 ```bash
 ls experiments/proposals-*.md 2>/dev/null | sort
@@ -69,9 +86,13 @@ You can also trigger Phase 2 manually with: /autoimprove run --phase propose
 
 And stop.
 
+```
+TodoWrite([{id: "locate", content: "🔍 Locate proposal files", status: "completed"}])
+```
+
 ---
 
-# 3. Load Decisions File
+# 3. 📋 Load Decisions File
 
 Read `experiments/proposals-decisions.json` if it exists. If missing, initialize an empty structure:
 
@@ -92,9 +113,13 @@ Each decision entry has the shape:
 }
 ```
 
+```
+TodoWrite([{id: "load", content: "📋 Load decisions file", status: "completed"}])
+```
+
 ---
 
-# 4. Read and Parse Proposals
+# 4. 🔍 Read and Parse Proposals
 
 Read each proposal file found in step 2. For each file, extract individual proposals using the `PROPOSAL #N:` block format. Each proposal block contains:
 - Title (from the `PROPOSAL #N:` header line)
@@ -109,9 +134,13 @@ Read each proposal file found in step 2. For each file, extract individual propo
 
 Build a flat list of all proposals across all files, numbered by their `#N` identifier. If the same `#N` appears in multiple files (unlikely but possible), use the most recent file's version.
 
+```
+TodoWrite([{id: "parse", content: "🔍 Read and parse proposals", status: "completed"}])
+```
+
 ---
 
-# 5. Classify by Decision Status
+# 5. 📊 Classify by Decision Status
 
 For each proposal, look up its current decision status from `proposals-decisions.json`:
 - **pending** — no decision recorded yet
@@ -119,9 +148,16 @@ For each proposal, look up its current decision status from `proposals-decisions
 - **rejected** — decision is "reject"
 - **deferred** — decision is "defer"
 
+```
+TodoWrite([
+  {id: "classify", content: "📊 Classify by decision status", status: "completed"},
+  {id: "action",   content: "🛠️ Execute subcommand",          status: "in_progress"}
+])
+```
+
 ---
 
-# 6. Execute Subcommand
+# 6. 🛠️ Execute Subcommand
 
 ## 6a. `list` (default)
 
@@ -152,6 +188,10 @@ If there are approved proposals, also print:
 Next run with /autoimprove run will execute <A> approved proposal(s).
 ```
 
+```
+TodoWrite([{id: "action", content: "📋 Listed <total> proposals — <P> pending, <A> approved, <D> deferred, <R> rejected", status: "completed"}])
+```
+
 ## 6b. `approve <N>`
 
 1. Find proposal #N. If not found, print: `Proposal #N not found.` and stop.
@@ -179,6 +219,10 @@ Next run with /autoimprove run will execute <A> approved proposal(s).
    It will run in the next /autoimprove run session.
    ```
 
+```
+TodoWrite([{id: "action", content: "✅ Proposal #N approved", status: "completed"}])
+```
+
 ## 6c. `reject <N> [--reason TEXT]`
 
 1. Find proposal #N. If not found, print: `Proposal #N not found.` and stop.
@@ -190,6 +234,10 @@ Next run with /autoimprove run will execute <A> approved proposal(s).
    Reason: <reason or "(none provided)">
    ```
 
+```
+TodoWrite([{id: "action", content: "🛠️ Proposal #N rejected", status: "completed"}])
+```
+
 ## 6d. `defer <N> [--until TEXT]`
 
 1. Find proposal #N. If not found, print: `Proposal #N not found.` and stop.
@@ -200,6 +248,10 @@ Next run with /autoimprove run will execute <A> approved proposal(s).
    Proposal #N deferred: "<Title>"
    Until: <until context or "(no deadline specified)">
    ```
+
+```
+TodoWrite([{id: "action", content: "💡 Proposal #N deferred", status: "completed"}])
+```
 
 ---
 
