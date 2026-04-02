@@ -33,9 +33,29 @@ Parse arguments:
 - `--list` — list all kept experiments and stop (no rollback)
 - `--dry-run` — show what would happen without making changes
 
+Initialize progress tracking:
+
+```javascript
+TodoWrite([
+  { id: "1", content: "✅ Prerequisites check", status: "pending" },
+  { id: "2", content: "📋 Load kept experiments", status: "pending" },
+  { id: "3", content: "📋 List mode (if --list)", status: "pending" },
+  { id: "4", content: "🔍 Resolve target ID", status: "pending" },
+  { id: "5", content: "🔍 Find the commit", status: "pending" },
+  { id: "6", content: "✅ Check revertibility", status: "pending" },
+  { id: "7", content: "⚠️ Dry run (if --dry-run)", status: "pending" },
+  { id: "8", content: "⚠️ Confirm with user", status: "pending" },
+  { id: "9", content: "⏮️ Execute revert", status: "pending" },
+  { id: "10", content: "📋 Update rolling baseline", status: "pending" },
+  { id: "11", content: "🗂️ Update state.json", status: "pending" },
+  { id: "12", content: "🗂️ Log rollback to TSV", status: "pending" },
+  { id: "13", content: "✅ Confirm completion", status: "pending" }
+])
+```
+
 ---
 
-# 1. Prerequisites Check
+# 1. ✅ Prerequisites Check
 
 ```bash
 test -f autoimprove.yaml || echo "MISSING_CONFIG"
@@ -48,7 +68,7 @@ If `experiments.tsv` is missing: print `No experiment log found. No experiments 
 
 ---
 
-# 2. Load Kept Experiments
+# 2. 📋 Load Kept Experiments
 
 Read `experiments/experiments.tsv`. Filter to rows where `verdict == "keep"`.
 
@@ -60,7 +80,7 @@ If no kept rows exist: print `No kept experiments found. Nothing to roll back.` 
 
 ---
 
-# 3. Handle `--list` Mode
+# 3. 📋 Handle `--list` Mode
 
 If `--list` was passed (or no ID was given and the user said something like "show kept experiments"):
 
@@ -87,7 +107,7 @@ Stop after printing the table.
 
 ---
 
-# 4. Resolve Target ID
+# 4. 🔍 Resolve Target ID
 
 If user passed `last`: use the highest numeric ID from the kept rows.
 
@@ -102,7 +122,7 @@ Store as `TARGET_ID`, `TARGET_THEME`, `TARGET_MSG`.
 
 ---
 
-# 5. Find the Commit
+# 5. 🔍 Find the Commit
 
 **5a. Try git tag first:**
 ```bash
@@ -131,7 +151,7 @@ Store as `TARGET_SHA`.
 
 ---
 
-# 6. Check Revertibility
+# 6. ✅ Check Revertibility
 
 **6a. Verify the commit is still in history:**
 ```bash
@@ -153,7 +173,7 @@ and stop.
 
 ---
 
-# 7. Dry Run
+# 7. ⚠️ Dry Run
 
 If `--dry-run` was passed, print:
 
@@ -179,7 +199,7 @@ Stop after the dry run output.
 
 ---
 
-# 8. Confirm with User
+# 8. ⚠️ Confirm with User
 
 Before reverting, print a confirmation prompt:
 
@@ -197,7 +217,7 @@ Wait for user confirmation. If the user does not explicitly confirm (`y`, `yes`,
 
 ---
 
-# 9. Execute Revert
+# 9. ⏮️ Execute Revert
 
 ```bash
 git revert --no-edit "${TARGET_SHA}"
@@ -220,7 +240,7 @@ Stop — do not update state on failure.
 
 ---
 
-# 10. Update Rolling Baseline
+# 10. 📋 Update Rolling Baseline
 
 After a successful revert, re-run the benchmark to refresh the rolling baseline:
 
@@ -236,7 +256,7 @@ Baseline may be stale — run /autoimprove run to re-anchor it.
 
 ---
 
-# 11. Update State
+# 11. 🗂️ Update State
 
 Read `experiments/state.json`. Decrement `consecutive_keeps` by 1 (floor at 0).
 
@@ -253,7 +273,7 @@ Write the updated `experiments/state.json`.
 
 ---
 
-# 12. Log the Rollback
+# 12. 🗂️ Log the Rollback
 
 Append a rollback record to `experiments/experiments.tsv`:
 
@@ -265,7 +285,7 @@ Where `<next_id>` is the next sequential experiment ID (padded to 3 digits).
 
 ---
 
-# 13. Confirm
+# 13. ✅ Confirm
 
 Print:
 

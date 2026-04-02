@@ -32,6 +32,19 @@ You are NOW executing the diff skill. Do NOT invoke this skill again via the Ski
 
 Show the code-level diff for one or more autoimprove experiments. Read-only — makes no changes to experiment state, baselines, or git history.
 
+Initialize progress tracking:
+
+```javascript
+TodoWrite([
+  { id: "1", content: "✅ Prerequisites check", status: "pending" },
+  { id: "2", content: "📋 Read experiment log", status: "pending" },
+  { id: "3", content: "🔍 Resolve commit hashes", status: "pending" },
+  { id: "4", content: "🔀 Show diff(s)", status: "pending" },
+  { id: "5", content: "🔀 Side-by-side comparison", status: "pending" },
+  { id: "6", content: "📋 Print metadata footer", status: "pending" }
+])
+```
+
 ## Argument Parsing
 
 Parse the argument string passed by the user:
@@ -52,7 +65,7 @@ Default (no arguments): show diff for the most recent experiment.
 
 ---
 
-# 1. Prerequisites Check
+# 1. ✅ Prerequisites Check
 
 ```bash
 test -f autoimprove.yaml || echo "MISSING_CONFIG"
@@ -73,7 +86,7 @@ No experiment log found. No experiments have run yet.
 
 ---
 
-# 2. Read the Experiment Log
+# 2. 📋 Read the Experiment Log
 
 Read `experiments/experiments.tsv`.
 
@@ -107,7 +120,7 @@ and stop.
 
 ---
 
-# 3. Resolve Commit Hashes
+# 3. 🔍 Resolve Commit Hashes
 
 For each experiment to inspect, find its git commit hash. Use the TSV `commit_hash` column when
 available. When absent, fall back to searching git history by the commit message prefix:
@@ -124,7 +137,7 @@ If no commit is found for an experiment, skip it and print:
 
 ---
 
-# 4. Show Diff(s)
+# 4. 🔀 Show Diff(s)
 
 For each resolved commit, run the appropriate git command depending on the active flags.
 
@@ -187,7 +200,7 @@ Apply the same 300-line cap. In `--stat` mode, use `git diff --stat` instead.
 
 ---
 
-# 5. Side-by-Side Comparison (two IDs)
+# 5. 🔀 Side-by-Side Comparison (two IDs)
 
 When the user passes two bare IDs (e.g., `5 9`), show each experiment's diff sequentially with
 headers, then add a file overlap summary at the end:
@@ -215,7 +228,7 @@ Compute the overlap by comparing the `--name-only` output of each commit.
 
 ---
 
-# 6. Print Metadata Footer
+# 6. 📋 Print Metadata Footer
 
 After the diff(s), always print a compact metadata footer:
 

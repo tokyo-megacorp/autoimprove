@@ -25,9 +25,21 @@ You are NOW executing the idea-archive skill. Do NOT invoke this skill again via
 
 Archive an idea-matrix convergence report to `decisions/` as a timestamped markdown file.
 
+Initialize progress tracking:
+
+```javascript
+TodoWrite([
+  { id: "1", content: "🔍 Locate convergence report", status: "pending" },
+  { id: "2", content: "🏷️ Generate filename & slug", status: "pending" },
+  { id: "3", content: "🗂️ Ensure decisions/ dir exists", status: "pending" },
+  { id: "4", content: "🗂️ Write archive file", status: "pending" },
+  { id: "5", content: "✅ Confirm archive", status: "pending" }
+])
+```
+
 ---
 
-# 1. Locate the Convergence Report
+# 1. 🔍 Locate the Convergence Report
 
 From the user's input or recent conversation context, find the structured JSON produced by the idea-matrix skill. It has shape:
 
@@ -45,7 +57,7 @@ Store as `REPORT`.
 
 ---
 
-# 2. Generate Filename
+# 2. 🏷️ Generate Filename
 
 From `REPORT.problem`, derive a slug:
 - Lowercase, strip punctuation, replace spaces/special chars with `-`, max 50 chars, trim trailing `-`
@@ -61,7 +73,7 @@ Store as `OUTFILE`.
 
 ---
 
-# 3. Ensure Directory Exists
+# 3. 🗂️ Ensure Directory Exists
 
 ```bash
 mkdir -p decisions
@@ -69,7 +81,7 @@ mkdir -p decisions
 
 ---
 
-# 4. Write Archive File
+# 4. 🗂️ Write Archive File
 
 Write `OUTFILE` with this structure:
 
@@ -113,7 +125,7 @@ composite_score: <REPORT.convergence.winner_composite>
 
 ---
 
-# 5. Confirm
+# 5. ✅ Confirm
 
 Print:
 
