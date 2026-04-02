@@ -38,9 +38,22 @@ Parse flags:
 
 If no experiments have been run, say so and suggest `/autoimprove run`.
 
+Initialize progress tracking:
+```
+TodoWrite([
+  {id:"prereqs",   content:"🔍 Check prerequisites",        status:"in_progress"},
+  {id:"read",      content:"📋 Read state files",            status:"pending"},
+  {id:"parse",     content:"📊 Parse experiment log",        status:"pending"},
+  {id:"drift",     content:"📅 Compute metric drift",        status:"pending"},
+  {id:"trust",     content:"🏆 Compute trust tier progress", status:"pending"},
+  {id:"format",    content:"📝 Format report",               status:"pending"},
+  {id:"stagnation",content:"📋 Check stagnated themes",      status:"pending"}
+])
+```
+
 ---
 
-# 1. Prerequisites Check
+# 1. 🔍 Prerequisites Check
 
 ```bash
 test -f autoimprove.yaml || echo "MISSING"
@@ -48,9 +61,11 @@ test -f autoimprove.yaml || echo "MISSING"
 
 If missing, print: `autoimprove is not initialized here. Run /autoimprove init.` and stop.
 
+Mark `prereqs` complete: `TodoWrite([{id:"prereqs", content:"🔍 Check prerequisites", status:"completed"}, {id:"read", content:"📋 Read state files", status:"in_progress"}])`
+
 ---
 
-# 2. Read State Files
+# 2. 📋 Read State Files
 
 Read these files (note which are absent — do not stop on missing files, report what's available):
 
@@ -74,9 +89,11 @@ No experiments have been run yet. Run /autoimprove run to start.
 ```
 and stop.
 
+Mark `read` complete: `TodoWrite([{id:"read", content:"📋 Read state files", status:"completed"}, {id:"parse", content:"📊 Parse experiment log", status:"in_progress"}])`
+
 ---
 
-# 3. Parse the Experiment Log
+# 3. 📊 Parse the Experiment Log
 
 The TSV columns are:
 ```
@@ -93,9 +110,11 @@ For the "current session" group, also capture:
 
 If `--full` was passed, include ALL sessions in kept/discards lists, not just the current one.
 
+Mark `parse` complete: `TodoWrite([{id:"parse", content:"📊 Parse experiment log", status:"completed"}, {id:"drift", content:"📅 Compute metric drift", status:"in_progress"}])`
+
 ---
 
-# 4. Compute Metric Drift
+# 4. 📅 Compute Metric Drift
 
 For each metric in `rolling-baseline.json.metrics`, compare to `epoch-baseline.json.metrics`:
 
@@ -111,9 +130,11 @@ Flag any metric where `abs(drift_pct)` exceeds `safety.epoch_drift_threshold` fr
 
 If either baseline file is missing, print: `(drift unavailable — baseline file missing)` for that metric.
 
+Mark `drift` complete: `TodoWrite([{id:"drift", content:"📅 Compute metric drift", status:"completed"}, {id:"trust", content:"🏆 Compute trust tier progress", status:"in_progress"}])`
+
 ---
 
-# 5. Compute Trust Tier Progress
+# 5. 🏆 Compute Trust Tier Progress
 
 From `state.json`, read `trust_tier` and `consecutive_keeps`.
 
@@ -124,9 +145,11 @@ keeps_needed = next_tier.after_keeps - state.consecutive_keeps
 
 If at the maximum tier (no higher tier defined), print "maximum tier reached."
 
+Mark `trust` complete: `TodoWrite([{id:"trust", content:"🏆 Compute trust tier progress", status:"completed"}, {id:"format", content:"📝 Format report", status:"in_progress"}])`
+
 ---
 
-# 6. Format Report
+# 6. 📝 Format Report
 
 ```
 autoimprove report — <project name> — <date>
@@ -162,13 +185,17 @@ For "epoch drift" in the Summary line, summarize net direction: if most metrics 
 
 For the "Notable Discards" list, only include experiments with `regress` or `fail` verdicts — omit `neutral` unless there are zero regressed/failed experiments to show, in which case include the most recent neutral as context.
 
+Mark `format` complete: `TodoWrite([{id:"format", content:"📝 Format report", status:"completed"}, {id:"stagnation", content:"📋 Check stagnated themes", status:"in_progress"}])`
+
 ---
 
-# 7. Stagnated Themes
+# 7. 📋 Stagnated Themes
 
 From `state.json`, read `theme_stagnation`. A theme is stagnated if its count is >= `safety.stagnation_window` from `autoimprove.yaml` (default 5).
 
 List each stagnated theme with its count. If none stagnated, omit the section entirely.
+
+Mark `stagnation` complete: `TodoWrite([{id:"stagnation", content:"📋 Check stagnated themes", status:"completed"}])`
 
 ---
 

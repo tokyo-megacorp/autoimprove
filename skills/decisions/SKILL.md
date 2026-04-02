@@ -18,9 +18,19 @@ Parse user input:
 - `--verdict TYPE` — filter by verdict type (go, conditional, abort — matched case-insensitively)
 - `--search TEXT` — search inside decision body text (problem statement, reasoning, insights), not just filenames
 
+Initialize progress tracking:
+```
+TodoWrite([
+  {id:"list",    content:"🗂️ List decision files",    status:"in_progress"},
+  {id:"filter",  content:"🔍 Apply filters",           status:"pending"},
+  {id:"display", content:"📋 Display results",         status:"pending"},
+  {id:"summary", content:"📊 Print summary line",      status:"pending"}
+])
+```
+
 ---
 
-# 1. List Decision Files
+# 1. 🗂️ List Decision Files
 
 ```bash
 ls decisions/ 2>/dev/null | sort -r
@@ -32,9 +42,11 @@ No decisions archived yet. Run /idea-matrix then /idea-archive to create one.
 ```
 and stop.
 
+Mark `list` complete: `TodoWrite([{id:"list", content:"🗂️ List decision files", status:"completed"}, {id:"filter", content:"🔍 Apply filters", status:"in_progress"}])`
+
 ---
 
-# 2. Apply Filters
+# 2. 🔍 Apply Filters
 
 Keep only files that pass ALL of the following active filters. Apply in this order:
 
@@ -67,9 +79,11 @@ No decisions match the given filters. Try a broader term or omit filters to list
 ```
 and stop.
 
+Mark `filter` complete: `TodoWrite([{id:"filter", content:"🔍 Apply filters", status:"completed"}, {id:"display", content:"📋 Display results", status:"in_progress"}])`
+
 ---
 
-# 3. Display Results
+# 3. 📋 Display Results
 
 For each matched file (newest-first — filenames are YYYY-MM-DD-prefixed):
 
@@ -83,9 +97,11 @@ If frontmatter is missing or malformed: `<YYYY-MM-DD>  <slug>  |  [unreadable]`
 
 **Full mode (`--full`):** Print complete file content for each match, separated by `---`.
 
+Mark `display` complete: `TodoWrite([{id:"display", content:"📋 Display results", status:"completed"}, {id:"summary", content:"📊 Print summary line", status:"in_progress"}])`
+
 ---
 
-# 4. Summary Line
+# 4. 📊 Summary Line
 
 ```
 <N> decision(s) found — <active filters description>
@@ -105,6 +121,8 @@ Archive has <N> files. Use --since or <keyword> to narrow results.
 ```
 
 Files not matching `YYYY-MM-DD-*.md` pattern are listed separately under `Unrecognized files:`.
+
+Mark `summary` complete: `TodoWrite([{id:"summary", content:"📊 <N> decision(s) found", status:"completed"}])`
 
 ---
 

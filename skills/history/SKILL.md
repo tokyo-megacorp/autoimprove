@@ -33,9 +33,21 @@ Parse any flags passed by the user:
 - `--last N` — show only the N most recent experiments (default: 20)
 - `--since YYYY-MM-DD` — show experiments on or after this date
 
+Initialize progress tracking:
+```
+TodoWrite([
+  {id:"prereqs", content:"🔍 Check prerequisites",    status:"in_progress"},
+  {id:"read",    content:"📋 Read experiment log",     status:"pending"},
+  {id:"filter",  content:"🔍 Apply filters",           status:"pending"},
+  {id:"table",   content:"📊 Format results table",    status:"pending"},
+  {id:"summary", content:"📋 Print filter summary",    status:"pending"},
+  {id:"totals",  content:"📊 Print all-time totals",   status:"pending"}
+])
+```
+
 ---
 
-# 1. Check Prerequisites
+# 1. 🔍 Check Prerequisites
 
 ```bash
 test -f autoimprove.yaml || echo "MISSING"
@@ -43,9 +55,11 @@ test -f autoimprove.yaml || echo "MISSING"
 
 If missing, print: `autoimprove is not initialized here. Run /autoimprove init.` and stop.
 
+Mark `prereqs` complete: `TodoWrite([{id:"prereqs", content:"🔍 Check prerequisites", status:"completed"}, {id:"read", content:"📋 Read experiment log", status:"in_progress"}])`
+
 ---
 
-# 2. Read the Experiment Log
+# 2. 📋 Read the Experiment Log
 
 Read `experiments/experiments.tsv`.
 
@@ -60,9 +74,11 @@ The TSV columns are:
 id  timestamp  theme  verdict  improved_metrics  regressed_metrics  tokens  wall_time  commit_msg
 ```
 
+Mark `read` complete: `TodoWrite([{id:"read", content:"📋 Read experiment log", status:"completed"}, {id:"filter", content:"🔍 Apply filters", status:"in_progress"}])`
+
 ---
 
-# 3. Apply Filters
+# 3. 🔍 Apply Filters
 
 Parse each data row into a structured record. Then apply filters in this order:
 
@@ -75,9 +91,11 @@ If no filters were passed, apply only the default `--last 20` limit.
 
 If filters produce an empty result, print: `No experiments match those filters.` and stop.
 
+Mark `filter` complete: `TodoWrite([{id:"filter", content:"🔍 Apply filters", status:"completed"}, {id:"table", content:"📊 Format results table", status:"in_progress"}])`
+
 ---
 
-# 4. Format the Table
+# 4. 📊 Format the Table
 
 Print each matching experiment as a table row. Use the following layout:
 
@@ -107,9 +125,11 @@ autoimprove history — my-project — 2026-03-25
 Showing 5 experiments (filtered: theme=failing_tests excluded, last 20)
 ```
 
+Mark `table` complete: `TodoWrite([{id:"table", content:"📊 Format results table", status:"completed"}, {id:"summary", content:"📋 Print filter summary", status:"in_progress"}])`
+
 ---
 
-# 5. Print Filter Summary
+# 5. 📋 Print Filter Summary
 
 After the table, print a one-line summary:
 
@@ -123,9 +143,11 @@ Build the filter description from active filters, e.g.:
 - ` — since 2026-03-20, last 10`
 - ` — (no filters, last 20)`
 
+Mark `summary` complete: `TodoWrite([{id:"summary", content:"📋 Print filter summary", status:"completed"}, {id:"totals", content:"📊 Print all-time totals", status:"in_progress"}])`
+
 ---
 
-# 6. Print Verdict Totals
+# 6. 📊 Print Verdict Totals
 
 Below the table, always print a totals line across the entire log (unfiltered):
 
@@ -134,6 +156,8 @@ All-time:  <total> experiments — <K> kept, <N> neutral, <R> regressed, <F> fai
 ```
 
 This gives context for how many the filter excluded.
+
+Mark `totals` complete: `TodoWrite([{id:"totals", content:"📊 🏆 <K> kept, <F> failed all-time", status:"completed"}])`
 
 ---
 
