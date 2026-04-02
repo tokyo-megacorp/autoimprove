@@ -228,6 +228,25 @@ After storing `JUDGE_OUTPUT`, mark: `TodoWrite([{id: "enthusiast", ..., status: 
 
 ## 3c.5. Model Escalation Check
 
+Two independent escalation paths. Either one sets `ROUND_MODEL = "sonnet"` for the next round.
+
+**Path A — Anomaly escalation (orchestrator-side, overrides Judge):**
+
+Check the error log for the current round. If ANY of these occurred, escalate unconditionally:
+- `enthusiast_malformed_json` or `enthusiast_sparse_output` — Haiku truncated or failed to produce valid JSON
+- `adversary_malformed_json` — same for Adversary
+- `judge_malformed_json` — Judge output unparseable
+
+```
+If round_errors is non-empty:
+  ROUND_MODEL = "sonnet"
+  Log: "Round {N}→{N+1}: escalated to sonnet (anomaly: {round_errors})"
+```
+
+Anomaly escalation takes priority — skip Path B if this triggered.
+
+**Path B — Judge recommendation:**
+
 Extract `JUDGE_OUTPUT.next_round_model` (defaults to `"haiku"` if missing or null).
 
 Set `ROUND_MODEL = JUDGE_OUTPUT.next_round_model`.
@@ -237,9 +256,9 @@ If `ROUND_MODEL` changed from the current round's model:
 Log: "Round {N}→{N+1}: model {'escalated to' if sonnet else 'reset to'} {ROUND_MODEL} — {JUDGE_OUTPUT.next_round_reason}"
 ```
 
-Use `ROUND_MODEL` when spawning Enthusiast, Adversary, and Judge in the **next** round (pass as `model: ROUND_MODEL` in each Agent call). The current round already ran with whatever model was active.
+**Cost guard:** if `ROUND_MODEL == "sonnet"` for 3 consecutive rounds, log a warning: `"[COST WARNING] Sonnet active for 3 consecutive rounds. Review may be expensive."` but do NOT override either escalation path.
 
-**Cost guard:** if `ROUND_MODEL == "sonnet"` for 3 consecutive rounds, log a warning: `"[COST WARNING] Sonnet active for 3 consecutive rounds (~{estimated_cost}). Review may be expensive."` but do NOT override the Judge's recommendation.
+Use `ROUND_MODEL` when spawning Enthusiast, Adversary, and Judge in the **next** round (pass as `model: ROUND_MODEL` in each Agent call).
 
 ## 3d. Check Convergence
 
