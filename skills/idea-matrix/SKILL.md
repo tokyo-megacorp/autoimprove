@@ -152,11 +152,24 @@ Store as `BRIEF` (shared) and `CELL_CONTEXT[1..9]` (per-cell additions if needed
 
 # 4. Dispatch 9 Haiku Agents in Parallel
 
+> **HARD CONSTRAINT — PARALLEL ONLY:** All 9 Agent calls MUST appear in a single message.
+> Dispatching agents one-at-a-time is a critical failure — it multiplies latency by 9×.
+> If you catch yourself about to dispatch a single agent: STOP. Compose all 9 calls first, then send them together.
+>
+> Checklist before dispatching:
+> - [ ] Have I written all 9 Agent tool calls?
+> - [ ] Are all 9 in the same response message (not spread across multiple turns)?
+>
+> Only then dispatch.
+
 Spawn all 9 agents simultaneously using the Agent tool. **No tools** — agents receive everything they need in the prompt.
 
 **Agent prompt template for each cell:**
 
 ```
+# No tools — agents must NOT browse the codebase
+allowed-tools: []
+
 You are an idea explorer scoring a specific design option or combination.
 
 ## Problem
@@ -230,7 +243,7 @@ Your "scores" should reflect your contrarian proposal, not any original option.
 Your "verdict" must state what you'd do instead and why it dominates.
 ```
 
-**Mark all cells in_progress before dispatching** (they all dispatch simultaneously):
+**Mark all cells in_progress before dispatching** (they all dispatch simultaneously) — this is the LAST step before the simultaneous parallel dispatch of all 9 agents.:
 ```
 TodoWrite([{id: "cell-1", status: "in_progress"}, ..., {id: "cell-9", status: "in_progress"}])
 ```
@@ -530,6 +543,25 @@ const DATA = {
 4. Run: `open /tmp/idea-matrix-<timestamp>.html`
 
 Skip this step entirely if the user declines or if `--brief` mode is active (brief mode is for pipeline handoff, not interactive review).
+
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  {id: "cell-1", status: "completed"},
+  {id: "cell-2", status: "completed"},
+  {id: "cell-3", status: "completed"},
+  {id: "cell-4", status: "completed"},
+  {id: "cell-5", status: "completed"},
+  {id: "cell-6", status: "completed"},
+  {id: "cell-7", status: "completed"},
+  {id: "cell-8", status: "completed"},
+  {id: "cell-9", status: "completed"},
+  {id: "devil", status: "completed"}
+])
+```
 
 ---
 

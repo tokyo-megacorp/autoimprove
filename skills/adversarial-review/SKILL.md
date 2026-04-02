@@ -277,6 +277,18 @@ Non-fatal — skip silently if `RUN_DIR` is unset or any write fails.
 
 Print last: `📁 Run saved: ~/.autoimprove/runs/<RUN_ID>/`
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  {id: "enthusiast", status: "completed"},
+  {id: "adversary", status: "completed"},
+  {id: "judge", status: "completed"}
+])
+```
+
 ---
 
 # COMPLIANCE RULES

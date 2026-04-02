@@ -310,6 +310,20 @@ Diagnosis
 
 Mark `summary` done in TodoWrite.
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  { id: "prereqs", status: "completed" },
+  { id: "config", status: "completed" },
+  { id: "gates", status: "completed" },
+  { id: "benchmarks", status: "completed" },
+  { id: "summary", status: "completed" }
+])
+```
+
 ---
 
 # 7. ⚠️ Common Failure Patterns and Fixes

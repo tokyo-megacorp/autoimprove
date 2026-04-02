@@ -157,6 +157,23 @@ Proposals                             ← only if pending proposals exist
 
 Mark `output` done in TodoWrite.
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  { id: "prereqs", status: "completed" },
+  { id: "state", status: "completed" },
+  { id: "worktrees", status: "completed" },
+  { id: "totals", status: "completed" },
+  { id: "trust", status: "completed" },
+  { id: "themes", status: "completed" },
+  { id: "proposals", status: "completed" },
+  { id: "output", status: "completed" }
+])
+```
+
 ---
 
 # 9. Notes

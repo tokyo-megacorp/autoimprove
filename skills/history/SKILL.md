@@ -159,6 +159,21 @@ This gives context for how many the filter excluded.
 
 Mark `totals` complete: `TodoWrite([{id:"totals", content:"📊 🏆 <K> kept, <F> failed all-time", status:"completed"}])`
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  {id:"prereqs", status:"completed"},
+  {id:"read", status:"completed"},
+  {id:"filter", status:"completed"},
+  {id:"table", status:"completed"},
+  {id:"summary", status:"completed"},
+  {id:"totals", status:"completed"}
+])
+```
+
 ---
 
 # Notes

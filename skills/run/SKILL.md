@@ -383,6 +383,24 @@ TodoWrite([
 ])
 ```
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  {id: "prereqs", status: "completed"},
+  {id: "config", status: "completed"},
+  {id: "baseline", status: "completed"},
+  {id: "state", status: "completed"},
+  {id: "harvest", status: "completed"},
+  {id: "preflight", status: "completed"},
+  {id: "tasks", status: "completed"},
+  {id: "loop", status: "completed"},
+  {id: "report", status: "completed"}
+])
+```
+
 ---
 
 # Key Invariants

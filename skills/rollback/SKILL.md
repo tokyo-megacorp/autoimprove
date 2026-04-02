@@ -359,6 +359,28 @@ Shows what would be reverted without touching git, state, or the TSV.
 - **Reverting out of order**: Rolling back experiment 003 when experiments 004 and 005 were also kept may cause conflicts — later experiments built on top of 003's changes. The dry run will show the target commit, but conflict detection only happens at `git revert` time.
 - **Double revert**: The skill checks for an existing `Revert.*exp-<id>` commit in log before proceeding. This prevents accidentally reverting a revert.
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  { id: "1", status: "completed" },
+  { id: "2", status: "completed" },
+  { id: "3", status: "completed" },
+  { id: "4", status: "completed" },
+  { id: "5", status: "completed" },
+  { id: "6", status: "completed" },
+  { id: "7", status: "completed" },
+  { id: "8", status: "completed" },
+  { id: "9", status: "completed" },
+  { id: "10", status: "completed" },
+  { id: "11", status: "completed" },
+  { id: "12", status: "completed" },
+  { id: "13", status: "completed" }
+])
+```
+
 ---
 
 # Integration Points

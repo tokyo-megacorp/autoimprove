@@ -232,6 +232,21 @@ TodoWrite([
 ])
 ```
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  { id: "prereqs", status: "completed" },
+  { id: "suites", status: "completed" },
+  { id: "run", status: "completed" },
+  { id: "parse", status: "completed" },
+  { id: "summary", status: "completed" },
+  { id: "guidance", status: "completed" }
+])
+```
+
 ---
 
 # 7. 📋 Usage Examples

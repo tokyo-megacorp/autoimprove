@@ -253,6 +253,21 @@ TodoWrite([{id: "action", content: "🛠️ Proposal #N rejected", status: "comp
 TodoWrite([{id: "action", content: "💡 Proposal #N deferred", status: "completed"}])
 ```
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  {id: "prereqs", status: "completed"},
+  {id: "locate", status: "completed"},
+  {id: "load", status: "completed"},
+  {id: "parse", status: "completed"},
+  {id: "classify", status: "completed"},
+  {id: "action", status: "completed"}
+])
+```
+
 ---
 
 # 7. Notes

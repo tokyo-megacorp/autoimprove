@@ -203,6 +203,19 @@ Suggest next step: `/autoimprove run --experiments 3` for a trial run.
 
 Mark: `TodoWrite([{id: "verify", status: "completed"}])`
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  {id: "detect", status: "completed"},
+  {id: "config", status: "completed"},
+  {id: "benchmarks", status: "completed"},
+  {id: "verify", status: "completed"}
+])
+```
+
 ---
 
 ## 10. When NOT to Use

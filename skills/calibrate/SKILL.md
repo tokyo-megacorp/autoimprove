@@ -293,6 +293,21 @@ content: |
 
 Mark complete: `TodoWrite([{id: "6", status: "completed"}])`
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  {id: "1", status: "completed"},
+  {id: "2", status: "completed"},
+  {id: "3", status: "completed"},
+  {id: "4", status: "completed"},
+  {id: "5", status: "completed"},
+  {id: "6", status: "completed"}
+])
+```
+
 ---
 
 ## CRITICAL Goodhart Boundary

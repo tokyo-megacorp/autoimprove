@@ -294,6 +294,24 @@ TodoWrite([
 ])
 ```
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  { id: "args", status: "completed" },
+  { id: "detect", status: "completed" },
+  { id: "map", status: "completed" },
+  { id: "read", status: "completed" },
+  { id: "patch", status: "completed" },
+  { id: "structure", status: "completed" },
+  { id: "readme", status: "completed" },
+  { id: "commit", status: "completed" },
+  { id: "report", status: "completed" }
+])
+```
+
 ---
 
 # ❌ Common Failure Patterns

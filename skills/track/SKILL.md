@@ -310,3 +310,20 @@ If the user says yes:
 > "Goal removed. It will no longer affect the experiment loop."
 
 Mark `remove` complete.
+
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  { id: "parse", status: "completed" },
+  { id: "state", status: "completed" },
+  { id: "bench", status: "completed" },
+  { id: "target", status: "completed" },
+  { id: "priority", status: "completed" },
+  { id: "save", status: "completed" },
+  { id: "list", status: "completed" },
+  { id: "remove", status: "completed" }
+])
+```

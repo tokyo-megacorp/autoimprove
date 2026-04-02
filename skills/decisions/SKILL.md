@@ -124,6 +124,19 @@ Files not matching `YYYY-MM-DD-*.md` pattern are listed separately under `Unreco
 
 Mark `summary` complete: `TodoWrite([{id:"summary", content:"📊 <N> decision(s) found", status:"completed"}])`
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  {id:"list", status:"completed"},
+  {id:"filter", status:"completed"},
+  {id:"display", status:"completed"},
+  {id:"summary", status:"completed"}
+])
+```
+
 ---
 
 # Usage Examples

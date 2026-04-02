@@ -183,6 +183,20 @@ The slug is auto-derived from `REPORT.problem`. If the problem text is "Which da
 - **Archive file exists from a same-day run:** This is normal for iterative matrix sessions. The skill automatically appends `-2`, `-3` to the filename. Confirm the final filename in the output so the user knows which file was written.
 - **Convergence JSON from a different version of idea-matrix:** Older runs may not have `required_mitigations` or `top_insights` fields. If a section's source field is missing or null, write `None.` for that section — never skip the section header, as downstream tools expect consistent structure.
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  { id: "1", status: "completed" },
+  { id: "2", status: "completed" },
+  { id: "3", status: "completed" },
+  { id: "4", status: "completed" },
+  { id: "5", status: "completed" }
+])
+```
+
 ---
 
 # Integration Points

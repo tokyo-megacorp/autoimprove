@@ -134,6 +134,20 @@ Ready to run the matrix now? [Y/n]
 
 Mark: `TodoWrite([{id: "handoff", status: "completed"}])`
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  {id: "sharpen", status: "completed"},
+  {id: "surface", status: "completed"},
+  {id: "feasibility", status: "completed"},
+  {id: "output", status: "completed"},
+  {id: "handoff", status: "completed"}
+])
+```
+
 ---
 
 # Notes

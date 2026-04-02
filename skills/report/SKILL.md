@@ -197,6 +197,22 @@ List each stagnated theme with its count. If none stagnated, omit the section en
 
 Mark `stagnation` complete: `TodoWrite([{id:"stagnation", content:"📋 Check stagnated themes", status:"completed"}])`
 
+## Final Step - Cleanup
+
+Before leaving the execution flow, close all todos explicitly:
+
+```javascript
+TodoWrite([
+  {id:"prereqs", status:"completed"},
+  {id:"read", status:"completed"},
+  {id:"parse", status:"completed"},
+  {id:"drift", status:"completed"},
+  {id:"trust", status:"completed"},
+  {id:"format", status:"completed"},
+  {id:"stagnation", status:"completed"}
+])
+```
+
 ---
 
 # Usage Examples
