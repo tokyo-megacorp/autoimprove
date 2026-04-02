@@ -87,12 +87,27 @@ From the options list, generate exactly 9 exploration cells. The matrix is **opt
 Store as `CELLS[1..9]`, each with a label and assignment description.
 
 **Initialize progress tracking:**
+
+Use plain-language descriptions — the user cares about intention and direction, not cell numbers or implementation labels. Describe what each idea *achieves* or *bets on*, not what it's technically called.
+
+Examples of good vs bad content strings:
+- Bad: `"Cell 1 — A alone (--sensitivity flag)"`
+- Good: `"Idea #1 — Audit whether the winner holds under different priorities"`
+- Bad: `"Cell 4 — A+B (sensitivity + weights)"`
+- Good: `"Idea #4 — Let users set priorities, then verify the choice is stable"`
+
 ```
 TodoWrite([
-  {id: "cell-1", content: "Cell 1 — {CELL_LABEL}", status: "pending"},
-  {id: "cell-2", content: "Cell 2 — {CELL_LABEL}", status: "pending"},
-  ...repeat for all 9 cells...
-  {id: "devil", content: "Devil's advocate — challenge winner", status: "pending"}
+  {id: "cell-1", content: "Idea #1 — [what Option A achieves, in plain language]", status: "pending"},
+  {id: "cell-2", content: "Idea #2 — [what Option B achieves, in plain language]", status: "pending"},
+  {id: "cell-3", content: "Idea #3 — [what Option C achieves, in plain language]", status: "pending"},
+  {id: "cell-4", content: "Idea #4 — [what combining A+B unlocks]", status: "pending"},
+  {id: "cell-5", content: "Idea #5 — [what combining A+C unlocks]", status: "pending"},
+  {id: "cell-6", content: "Idea #6 — [what combining B+C unlocks]", status: "pending"},
+  {id: "cell-7", content: "Idea #7 — [what all three together achieve]", status: "pending"},
+  {id: "cell-8", content: "Idea #8 — [best-of-breed: what the remix optimizes for]", status: "pending"},
+  {id: "cell-9", content: "Idea #9 — [contrarian: what assumption this challenges]", status: "pending"},
+  {id: "devil", content: "Devil's advocate — stress-test the winner", status: "pending"}
 ])
 ```
 
