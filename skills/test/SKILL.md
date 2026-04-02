@@ -45,9 +45,22 @@ Parse additional flags:
 - `--quiet` → suppress per-suite output; print only the final summary and failures. Useful for CI or quick pre-run checks.
 - `--test <name>` → run only the single test case whose description contains `<name>` (substring match). Applies within the selected suite. If multiple suites are selected, run `<name>` within each.
 
+Initialize progress tracking:
+
+```
+TodoWrite([
+  { id: "prereqs",   content: "✅ Check prerequisites",       status: "in_progress" },
+  { id: "suites",    content: "📋 Build suite list",          status: "todo" },
+  { id: "run",       content: "🧪 Run each suite",           status: "todo" },
+  { id: "parse",     content: "📊 Parse pass/fail counts",   status: "todo" },
+  { id: "summary",   content: "📝 Format summary",           status: "todo" },
+  { id: "guidance",  content: "📋 Exit guidance",            status: "todo" }
+])
+```
+
 ---
 
-# 1. Check Prerequisites
+# 1. ✅ Check Prerequisites
 
 Verify you are in a project with the autoimprove test infrastructure:
 
@@ -68,9 +81,17 @@ No test suites found. Expected test/ directory in project root.
 ```
 and stop.
 
+After confirming prerequisites pass, update progress:
+```
+TodoWrite([
+  { id: "prereqs",  content: "✅ Check prerequisites",     status: "completed" },
+  { id: "suites",   content: "📋 Build suite list",        status: "in_progress" }
+])
+```
+
 ---
 
-# 2. Build Suite List
+# 2. 📋 Build Suite List
 
 Map the argument to the set of scripts to run:
 
@@ -89,9 +110,17 @@ For `all`, filter out scripts that do not exist on disk — do not fail if a sui
 (skipped: test/harvest/test-harvest.sh — not found)
 ```
 
+Update progress:
+```
+TodoWrite([
+  { id: "suites",  content: "📋 Build suite list",   status: "completed" },
+  { id: "run",     content: "🧪 Run each suite",     status: "in_progress" }
+])
+```
+
 ---
 
-# 3. Run Each Suite
+# 3. 🧪 Run Each Suite
 
 For each script in the suite list, run:
 
@@ -121,9 +150,17 @@ Print status after each suite:
 
 Do not abort on failure — run all suites even if one fails.
 
+Update progress:
+```
+TodoWrite([
+  { id: "run",    content: "🧪 Run each suite",         status: "completed" },
+  { id: "parse",  content: "📊 Parse pass/fail counts", status: "in_progress" }
+])
+```
+
 ---
 
-# 4. Parse Pass/Fail Counts
+# 4. 📊 Parse Pass/Fail Counts
 
 After all suites complete, parse the output for TAP-style or shell-assertion-style results. Look for patterns like:
 - `ok N - description` / `not ok N - description` (TAP)
@@ -134,9 +171,17 @@ For each suite, extract: total tests, passed, failed.
 
 If a suite produced no parseable count, report: `(N/A — check raw output)`.
 
+Update progress:
+```
+TodoWrite([
+  { id: "parse",    content: "📊 Parse pass/fail counts",  status: "completed" },
+  { id: "summary",  content: "📝 Format summary",          status: "in_progress" }
+])
+```
+
 ---
 
-# 5. Format Summary
+# 5. 📝 Format Summary
 
 ```
 autoimprove test — <project name> — <date>
@@ -162,9 +207,17 @@ All tests passed (N/N across M suites).
 
 In `--quiet` mode, print only the summary block and the Failures section — omit the per-suite live output. This is identical output, just with the streaming output suppressed.
 
+Update progress:
+```
+TodoWrite([
+  { id: "summary",   content: "📝 Format summary",  status: "completed" },
+  { id: "guidance",  content: "📋 Exit guidance",   status: "in_progress" }
+])
+```
+
 ---
 
-# 6. Exit Guidance
+# 6. 📋 Exit Guidance
 
 If any suite failed:
 - Point the user to the failing script: `Re-run with: bash <script>` for focused output.
@@ -173,9 +226,15 @@ If any suite failed:
 
 If all suites passed, print: `All clear — safe to run /autoimprove run.`
 
+```
+TodoWrite([
+  { id: "guidance",  content: "📋 Exit guidance",  status: "completed" }
+])
+```
+
 ---
 
-# 7. Usage Examples
+# 7. 📋 Usage Examples
 
 ## Example 1 — Full suite run before starting a session
 
@@ -264,7 +323,7 @@ Good practice after any skill SKILL.md change: confirms the skills test suite st
 
 ---
 
-# 8. Edge Cases
+# 8. ❌ Edge Cases
 
 **Missing script for a requested suite**
 
@@ -301,7 +360,7 @@ Use /autoimprove test <suite> to list all test names in that suite.
 
 ---
 
-# 9. Integration Points
+# 9. 🔄 Integration Points
 
 - **Before `/autoimprove run`** — the `run` skill's hard gates call these same scripts. A passing `test` run confirms the baseline is clean before the experiment loop starts.
 - **After a KEEP verdict** — re-run `test` to catch regressions the experimenter introduced that gates did not catch (gate commands are configurable and may be narrower than these suites).
@@ -312,7 +371,7 @@ Use /autoimprove test <suite> to list all test names in that suite.
 
 ---
 
-# 10. Common Failure Patterns
+# 10. ❌ Common Failure Patterns
 
 - **All suites pass but gate fails during `/autoimprove run`:** The gate command in `autoimprove.yaml` may call a different script path than the one this skill runs. Check the `gates` config to ensure the gate command matches `test/evaluate/test-evaluate.sh`.
 - **Test count drops unexpectedly after an experimenter commit:** An experimenter may have accidentally modified a test file despite the `additive_only` constraint. Run `git diff HEAD~1 -- test/` to verify. If tests were removed, roll back the experiment with `/autoimprove rollback`.
@@ -322,7 +381,7 @@ Use /autoimprove test <suite> to list all test names in that suite.
 
 ---
 
-# 11. Recommended Test Workflow
+# 11. 🔄 Recommended Test Workflow
 
 Use this sequence when debugging a test regression:
 
@@ -334,7 +393,7 @@ Use this sequence when debugging a test regression:
 
 ---
 
-# 12. When NOT to Use
+# 12. 📋 When NOT to Use
 
 - **Investigating a specific failing test** — run the script directly (`bash test/challenge/test-score-challenge.sh`) for unfiltered output. Or use `--test <name>` if the skill's filter is sufficient.
 - **Checking code style or formatting** — that is a gate concern; use the `run` skill which invokes gates via `evaluate.sh`.

@@ -32,9 +32,25 @@ You are NOW executing the docs-regenerate skill. Do NOT invoke this skill again 
 
 Update documentation using ONLY the git diff as context. Never read full source files. Never regenerate entire docs.
 
+Initialize progress tracking:
+
+```
+TodoWrite([
+  { id: "args",      content: "📋 Parse arguments",          status: "in_progress" },
+  { id: "detect",    content: "🔍 Detect changed files",     status: "todo" },
+  { id: "map",       content: "📊 Map changes to docs",      status: "todo" },
+  { id: "read",      content: "📋 Read affected doc sections", status: "todo" },
+  { id: "patch",     content: "📝 Patch docs via subagents", status: "todo" },
+  { id: "structure", content: "🔍 Check structure changes",  status: "todo" },
+  { id: "readme",    content: "📝 Update docs/README.md",    status: "todo" },
+  { id: "commit",    content: "✅ Write files and commit",   status: "todo" },
+  { id: "report",    content: "📋 Report",                   status: "todo" }
+])
+```
+
 ---
 
-# 1. Parse Arguments
+# 1. 📋 Parse Arguments
 
 From the user's input, extract:
 - **range**: git range for detecting changes (default: `HEAD~1..HEAD`)
@@ -42,9 +58,16 @@ From the user's input, extract:
 
 If a specific range was given (e.g., `HEAD~5..HEAD`, `main..feature`), use that for change detection.
 
+```
+TodoWrite([
+  { id: "args",    content: "📋 Parse arguments",       status: "completed" },
+  { id: "detect",  content: "🔍 Detect changed files",  status: "in_progress" }
+])
+```
+
 ---
 
-# 2. Detect Changed Files and Get Diffs
+# 2. 🔍 Detect Changed Files and Get Diffs
 
 **2a. Get the list of changed files:**
 
@@ -69,9 +92,16 @@ From the diff filter flags:
 - `M`/`C`/`R` = modified (doc entry needs to be updated)
 - `D` = deleted (doc entry needs to be removed)
 
+```
+TodoWrite([
+  { id: "detect",  content: "🔍 Detect changed files",    status: "completed" },
+  { id: "map",     content: "📊 Map changes to docs",     status: "in_progress" }
+])
+```
+
 ---
 
-# 3. Map Changes to Affected Docs
+# 3. 📊 Map Changes to Affected Docs
 
 For each file in `CHANGED_FILES`, classify it and determine which doc(s) need updating:
 
@@ -98,9 +128,16 @@ Docs update plan (diff-only):
   SKIP docs/configuration.md — no config changes
 ```
 
+```
+TodoWrite([
+  { id: "map",   content: "📊 Map changes to docs — N docs affected",  status: "completed" },
+  { id: "read",  content: "📋 Read affected doc sections",              status: "in_progress" }
+])
+```
+
 ---
 
-# 4. Read ONLY Affected Doc Sections
+# 4. 📋 Read ONLY Affected Doc Sections
 
 For each affected doc, read the doc file that needs updating:
 
@@ -110,9 +147,16 @@ Read docs/skills.md
 
 Do NOT read source files (skills/*.md, agents/*.md, commands/*.md, hooks/*). The git diff from step 2b contains everything needed.
 
+```
+TodoWrite([
+  { id: "read",   content: "📋 Read affected doc sections",  status: "completed" },
+  { id: "patch",  content: "📝 Patch docs via subagents",    status: "in_progress" }
+])
+```
+
 ---
 
-# 5. Delegate Patching to Subagents
+# 5. 📝 Delegate Patching to Subagents
 
 For each affected doc, spawn a subagent to patch it using ONLY the diff.
 
@@ -154,9 +198,16 @@ Output the COMPLETE updated doc file content.
 
 Collect all patched doc content as `PATCHED[doc_path] = content`.
 
+```
+TodoWrite([
+  { id: "patch",     content: "📝 Patch docs via subagents",   status: "completed" },
+  { id: "structure", content: "🔍 Check structure changes",    status: "in_progress" }
+])
+```
+
 ---
 
-# 6. Check for Structure Changes
+# 6. 🔍 Check for Structure Changes
 
 Only if the diff includes NEW or DELETED files in a category, check whether counts crossed the scale threshold:
 
@@ -172,17 +223,31 @@ Apply the spec's scale rule (from `~/.claude/docs-structure-spec.md` if it exist
 
 Log any migrations performed.
 
+```
+TodoWrite([
+  { id: "structure",  content: "🔍 Check structure changes",  status: "completed" },
+  { id: "readme",     content: "📝 Update docs/README.md",    status: "in_progress" }
+])
+```
+
 ---
 
-# 7. Update docs/README.md
+# 7. 📝 Update docs/README.md
 
 Only if new doc files were created or the structure changed.
 
 Read the current `docs/README.md`. Add missing links, remove links to deleted files. Do not rewrite sections unrelated to the change.
 
+```
+TodoWrite([
+  { id: "readme",  content: "📝 Update docs/README.md",  status: "completed" },
+  { id: "commit",  content: "✅ Write files and commit",  status: "in_progress" }
+])
+```
+
 ---
 
-# 8. Write Files and Commit
+# 8. ✅ Write Files and Commit
 
 **8a. Write patched docs:**
 
@@ -199,9 +264,16 @@ git commit -m "docs: update after $(echo <RANGE> | tr '..' ' ')"
 
 If no docs actually changed, skip the commit and report: "All docs are up to date — no changes needed."
 
+```
+TodoWrite([
+  { id: "commit",  content: "✅ Write files and commit",  status: "completed" },
+  { id: "report",  content: "📋 Report",                  status: "in_progress" }
+])
+```
+
 ---
 
-# 9. Report
+# 9. 📋 Report
 
 Print a summary:
 
@@ -216,9 +288,15 @@ Docs update complete (diff-only).
 Commit: <SHA> — "docs: update after HEAD~1 HEAD"
 ```
 
+```
+TodoWrite([
+  { id: "report",  content: "📋 Report",  status: "completed" }
+])
+```
+
 ---
 
-# Common Failure Patterns
+# ❌ Common Failure Patterns
 
 - **Subagent reads full source files despite diff-only constraint:** If a patching subagent reads the entire source to "understand context", it defeats the diff-only design and floods the context window. Instruct subagents explicitly: "Your only source of truth is the diff. Do not read source files."
 - **Commit message references the wrong SHAs:** The skill constructs `"docs: update after <from> <to>"` from the git arguments. If `--from` and `--to` are omitted, it defaults to `HEAD~1 HEAD`. Verify the resulting commit message matches the diff range you intended.
@@ -227,7 +305,7 @@ Commit: <SHA> — "docs: update after HEAD~1 HEAD"
 
 ---
 
-# Constraints
+# 📋 Constraints
 
 - **Diff-only**: NEVER read full source files. The git diff is the only input to subagents.
 - **Patch, don't regenerate**: Update affected sections, not entire documents.
@@ -237,7 +315,7 @@ Commit: <SHA> — "docs: update after HEAD~1 HEAD"
 
 ---
 
-# Notes
+# 📝 Notes
 
 - This skill is designed for the post-commit hook: `git commit` → autoimprove detects it → docs-regenerate runs automatically. If the hook is not wired, run the skill manually after each milestone.
 - The diff-only constraint exists to prevent context flooding. A single source file diff is usually under 100 lines; the corresponding doc patch is under 50. Reading full source files for a doc update is a 10x token waste with no quality benefit.

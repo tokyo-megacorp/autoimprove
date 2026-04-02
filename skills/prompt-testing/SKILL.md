@@ -37,7 +37,7 @@ Claude Code skills and agents are tested by running `claude -p` in headless mode
 
 ---
 
-## The Four Test Types
+## 🔍 The Four Test Types
 
 ```dot
 digraph test_types {
@@ -76,7 +76,7 @@ digraph test_types {
 
 ---
 
-## File Structure
+## 📋 File Structure
 
 ```
 tests/
@@ -94,7 +94,7 @@ Always check if `test-helpers.sh` already exists before writing new helpers — 
 
 ---
 
-## Type 1: Unit Test
+## 🧪 Type 1: Unit Test
 
 Tests that the skill document contains the right content and teaches the right behavior.
 
@@ -111,7 +111,7 @@ assert_contains "$output" "50.*199\|50-199" "references the correct range"
 
 ---
 
-## Type 2: Agent Test
+## 🧪 Type 2: Agent Test
 
 Tests that an agent produces correct structured output for a given scenario. Inject the system prompt inline — do NOT rely on the plugin being loaded.
 
@@ -138,7 +138,7 @@ assert_json_array_length "$output" "rulings" "1" "one ruling per finding"
 
 ---
 
-## Type 3: Triggering Test
+## 🔍 Type 3: Triggering Test
 
 Tests that a natural user prompt causes the correct skill to fire. Requires `--output-format stream-json` — this is the only reliable mechanism.
 
@@ -173,7 +173,7 @@ fi
 
 ---
 
-## Type 4: Explicit Request Test
+## ✅ Type 4: Explicit Request Test
 
 Tests that when a user names the skill directly, it fires AND no work happens before it loads. The premature-action check is the critical addition over a regular triggering test.
 
@@ -216,7 +216,7 @@ fi
 
 ---
 
-## Test Organization for Triggering Tests
+## 📋 Test Organization for Triggering Tests
 
 Organize triggering tests into sections by prompt source and intent. This structure catches both known regressions and extrapolated edge cases:
 
@@ -234,7 +234,7 @@ Organize triggering tests into sections by prompt source and intent. This struct
 
 ---
 
-## Common Mistakes
+## ❌ Common Mistakes
 
 | Mistake | Why it fails | Fix |
 |---------|-------------|-----|
@@ -250,7 +250,7 @@ Organize triggering tests into sections by prompt source and intent. This struct
 
 ---
 
-## Quick Reference: Invocation Flags
+## 📋 Quick Reference: Invocation Flags
 
 ```bash
 # Unit / agent tests (no plugin loading needed)
@@ -272,7 +272,7 @@ claude -p "$PROMPT" \
 
 ---
 
-## Real Examples
+## 📝 Real Examples
 
 These are production tests for this plugin — read them as working reference:
 
@@ -287,9 +287,9 @@ Shared helpers:
 
 ---
 
-## Debugging Failing Tests
+## 🔍 Debugging Failing Tests
 
-### Triggering test fails: skill never fires
+### ❌ Triggering test fails: skill never fires
 
 1. **Confirm the skill is loaded.** Dump all skills that fired during the test run:
    ```bash
@@ -308,7 +308,7 @@ Shared helpers:
    grep '"type":"assistant"' "$LOG" | head -3 | jq -r '.message.content[0].text // empty'
    ```
 
-### Agent test fails: JSON assertion mismatch
+### ❌ Agent test fails: JSON assertion mismatch
 
 1. **Print the raw output** before asserting:
    ```bash
@@ -320,7 +320,7 @@ Shared helpers:
 
 3. **Verify the scenario is valid.** Agent tests inject a scenario as the user message. If the scenario is under-specified, the agent may produce valid JSON with different field values than expected. Make the scenario concrete enough to force a deterministic output.
 
-### Test passes locally but fails in CI
+### ❌ Test passes locally but fails in CI
 
 - **Missing env vars.** `TEST_MODEL`, `PLUGIN_DIR`, and `ANTHROPIC_API_KEY` must be set. CI may not inherit your shell's env.
 - **macOS vs Linux.** `grep -E` behavior and `awk` field separators differ. Test on both if possible; prefer POSIX constructs.
@@ -328,7 +328,7 @@ Shared helpers:
 
 ---
 
-## When NOT to Use This Skill
+## 📋 When NOT to Use This Skill
 
 - **Running tests** — use the `/autoimprove test` skill to execute existing test suites
 - **Testing business logic, utilities, or regular application code** — this skill covers plugin components (skills, agents, commands) only; use your project's standard test framework for everything else
