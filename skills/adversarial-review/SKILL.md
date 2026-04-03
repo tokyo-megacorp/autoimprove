@@ -255,7 +255,25 @@ Mark todo: `{id: "judge", content: "⚖️ AR Round {ROUND}: Judge ({confirmed_c
 - Path B (judge recommendation): use `JUDGE_OUTPUT.next_round_model` if not already escalated by Path A (Path A takes priority). Note: `next_round_model` is an undocumented extension to the judge schema; if absent, default to `"haiku"`.
 - If `ROUND_MODEL == "sonnet"` for 3+ consecutive rounds: log `"[COST WARNING] Sonnet active 3 consecutive rounds."`
 
-**Write `$RUN_DIR/round-{ROUND}.json`:** `{round, run_id, model, enthusiast, adversary, judge, errors, converged}` — omit `errors` if empty. Also append this object to the `ROUNDS` array in state.
+**Write round telemetry** (save agent outputs to temp files, then call the helper):
+```bash
+# Save agent outputs to temp files
+ENTHUSIAST_TMP=$(mktemp /tmp/ar-enthusiast-XXXXXX.json)
+ADVERSARY_TMP=$(mktemp /tmp/ar-adversary-XXXXXX.json)
+JUDGE_TMP=$(mktemp /tmp/ar-judge-XXXXXX.json)
+echo '<ENTHUSIAST_OUTPUT_JSON>' > "$ENTHUSIAST_TMP"
+echo '<ADVERSARY_OUTPUT_JSON>'  > "$ADVERSARY_TMP"
+echo '<JUDGE_OUTPUT_JSON>'      > "$JUDGE_TMP"
+
+# Write round-N.json and update meta.json incrementally
+AR_ROUND_MODEL="<ROUND_MODEL>" \
+AR_ROUND_ERRORS='<ERRORS_JSON_ARRAY_OR_EMPTY_ARRAY>' \
+bash scripts/ar-write-round.sh "$RUN_DIR" <ROUND> "$ENTHUSIAST_TMP" "$ADVERSARY_TMP" "$JUDGE_TMP"
+
+rm -f "$ENTHUSIAST_TMP" "$ADVERSARY_TMP" "$JUDGE_TMP"
+```
+(`scripts/ar-write-round.sh` writes `$RUN_DIR/round-{ROUND}.json` and updates `meta.json`.)
+Also append the round-N.json contents to the `ROUNDS` array in state.
 
 ---
 
