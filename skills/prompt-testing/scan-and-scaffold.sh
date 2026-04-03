@@ -39,7 +39,7 @@ if [ "$INCLUDE_SKILLS" = "1" ]; then
         name="$(basename "$skill_dir")"
         # Skip the prompt-testing skill itself
         [ "$name" = "prompt-testing" ] && continue
-        test_file="$REPO_ROOT/test/skills/test-${name}.sh"
+        test_file="$REPO_ROOT/tests/skills/test-${name}.sh"
         [ -f "$test_file" ] && continue  # already has a test
         ts=$(git -C "$REPO_ROOT" log -1 --format="%ct" -- "skills/${name}/SKILL.md" 2>/dev/null || echo "0")
         ITEMS+=("${ts}|skill|${name}|skills/${name}/SKILL.md")
@@ -50,7 +50,7 @@ if [ "$INCLUDE_AGENTS" = "1" ]; then
     for agent_file in "$REPO_ROOT/agents"/*.md; do
         [ -f "$agent_file" ] || continue
         name="$(basename "$agent_file" .md)"
-        test_file="$REPO_ROOT/test/agents/test-${name}.sh"
+        test_file="$REPO_ROOT/tests/agents/test-${name}.sh"
         [ -f "$test_file" ] && continue  # already has a test
         ts=$(git -C "$REPO_ROOT" log -1 --format="%ct" -- "agents/${name}.md" 2>/dev/null || echo "0")
         ITEMS+=("${ts}|agent|${name}|agents/${name}.md")
@@ -125,4 +125,4 @@ echo ""
 echo "Next steps:"
 echo "  1. For each test file, read the source component"
 echo "  2. Replace TODO placeholders with real behavioral claims"
-echo "  3. Run: bash test/skills/test-<name>.sh   (or test/agents/)"
+echo "  3. Run: bash tests/skills/test-<name>.sh   (or tests/agents/)"

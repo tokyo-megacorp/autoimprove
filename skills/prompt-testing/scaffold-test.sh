@@ -4,10 +4,11 @@
 #        ./scaffold-test.sh agent <agent-name>
 #
 # Creates:
-#   test/skills/test-<name>.sh       (for skills)
-#   test/agents/test-<name>.sh       (for agents)
-#   test/skills/test-helpers.sh      (if not present)
-#   test/agents/test-helpers.sh      (if not present)
+#   tests/skills/test-<name>.sh       (for skills)
+#   tests/agents/test-<name>.sh       (for agents)
+#
+# Helpers live in tests/skills/test-helpers.sh and tests/agents/test-helpers.sh
+# (already present in the repo — scaffold does NOT overwrite them).
 #
 # After running: fill in the assertions. The scaffold contains
 # placeholder tests that FAIL until you complete them.
@@ -32,272 +33,153 @@ if [ "$TYPE" != "skill" ] && [ "$TYPE" != "agent" ]; then
 fi
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-TEST_DIR="$REPO_ROOT/test/${TYPE}s"
+TEST_DIR="$REPO_ROOT/tests/${TYPE}s"
 TEST_FILE="$TEST_DIR/test-${NAME}.sh"
 HELPERS_FILE="$TEST_DIR/test-helpers.sh"
 
-mkdir -p "$TEST_DIR"
-
-# ── Write test-helpers.sh (if not present) ─────────────────────────────────
 if [ ! -f "$HELPERS_FILE" ]; then
-cat > "$HELPERS_FILE" << 'HELPERS_EOF'
-#!/usr/bin/env bash
-# Shared helpers for autoimprove skill/agent tests.
-# Cross-platform (macOS + Linux) — no GNU timeout dependency.
-
-TEST_MODEL="${TEST_MODEL:-haiku}"
-PLUGIN_DIR="${PLUGIN_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
-
-# Run claude with a natural language prompt, capture text output.
-# Usage: run_claude "In the X skill, what is Y?" [max_turns]
-run_claude() {
-    local prompt="$1"
-    local max_turns="${2:-3}"
-    claude -p "$prompt" \
-        --model "$TEST_MODEL" \
-        --output-format text \
-        --max-turns "$max_turns" \
-        2>/dev/null
-}
-
-# Run triggering test — loads plugin, captures stream-json log file path.
-# Usage: log=$(run_with_plugin "natural language prompt")
-run_with_plugin() {
-    local prompt="$1"
-    local max_turns="${2:-3}"
-    local log
-    log=$(mktemp)
-    claude -p "$prompt" \
-        --model "$TEST_MODEL" \
-        --plugin-dir "$PLUGIN_DIR" \
-        --dangerously-skip-permissions \
-        --max-turns "$max_turns" \
-        --verbose \
-        --output-format stream-json \
-        > "$log" 2>&1
-    echo "$log"
-}
-
-# Assert output contains pattern (case-insensitive regex).
-assert_contains() {
-    local output="$1"
-    local pattern="$2"
-    local name="${3:-test}"
-    if echo "$output" | grep -qiE "$pattern"; then
-        echo "  [PASS] $name"
-        return 0
-    else
-        echo "  [FAIL] $name"
-        echo "         expected: $pattern"
-        echo "         got: $(echo "$output" | head -3)"
-        return 1
-    fi
-}
-
-# Assert output does NOT contain pattern.
-assert_not_contains() {
-    local output="$1"
-    local pattern="$2"
-    local name="${3:-test}"
-    if echo "$output" | grep -qiE "$pattern"; then
-        echo "  [FAIL] $name (pattern found but should not be)"
-        echo "         found: $pattern"
-        echo "         in: $(echo "$output" | grep -iE "$pattern" | head -1)"
-        return 1
-    else
-        echo "  [PASS] $name"
-        return 0
-    fi
-}
-
-# Assert pattern_a appears before pattern_b in output.
-assert_order() {
-    local output="$1"
-    local pattern_a="$2"
-    local pattern_b="$3"
-    local name="${4:-order test}"
-    local line_a line_b
-    line_a=$(echo "$output" | grep -niE "$pattern_a" | head -1 | cut -d: -f1)
-    line_b=$(echo "$output" | grep -niE "$pattern_b" | head -1 | cut -d: -f1)
-    if [ -n "$line_a" ] && [ -n "$line_b" ] && [ "$line_a" -lt "$line_b" ]; then
-        echo "  [PASS] $name"
-        return 0
-    else
-        echo "  [FAIL] $name"
-        echo "         expected '$pattern_a' (line $line_a) before '$pattern_b' (line $line_b)"
-        return 1
-    fi
-}
-
-# Assert a skill was triggered in a stream-json log file.
-assert_skill_triggered() {
-    local log="$1"
-    local skill="$2"
-    local name="${3:-skill triggered}"
-    local pattern='"skill":"([^"]*:)?'"$skill"'"'
-    if grep -q '"name":"Skill"' "$log" && grep -qE "$pattern" "$log"; then
-        echo "  [PASS] $name"
-        return 0
-    else
-        echo "  [FAIL] $name"
-        echo "         skills that fired: $(grep -o '"skill":"[^"]*"' "$log" | sort -u)"
-        return 1
-    fi
-}
-
-# Assert no tool use happened before the first Skill tool call.
-assert_no_premature_work() {
-    local log="$1"
-    local name="${2:-no premature work}"
-    local first_skill_line
-    first_skill_line=$(grep -n '"name":"Skill"' "$log" | head -1 | cut -d: -f1)
-    if [ -z "$first_skill_line" ]; then
-        echo "  [FAIL] $name (skill never called)"
-        return 1
-    fi
-    local premature
-    premature=$(head -n "$first_skill_line" "$log" | \
-        grep '"type":"tool_use"' | \
-        grep -v '"name":"Skill"' | \
-        grep -v '"name":"TodoWrite"')
-    if [ -n "$premature" ]; then
-        echo "  [FAIL] $name"
-        echo "         tool use before skill load: $(echo "$premature" | head -1)"
-        return 1
-    else
-        echo "  [PASS] $name"
-        return 0
-    fi
-}
-
-# Track pass/fail counts. Call record $? after each assertion block.
-PASS=0; FAIL=0
-record() { if [ "$1" -eq 0 ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); fi; }
-
-summary() {
-    echo ""
-    echo "Results: $PASS passed, $FAIL failed"
-    [ "$FAIL" -eq 0 ]
-}
-HELPERS_EOF
-chmod +x "$HELPERS_FILE"
-echo "Wrote: $HELPERS_FILE"
+    echo "Error: helpers not found at $HELPERS_FILE"
+    echo "Expected tests/ layout: tests/skills/test-helpers.sh and tests/agents/test-helpers.sh"
+    exit 1
 fi
 
-# ── Write test skeleton ─────────────────────────────────────────────────────
+# ── Refuse to overwrite ─────────────────────────────────────────────────────
 if [ -f "$TEST_FILE" ]; then
     echo "Already exists: $TEST_FILE (skipping — delete to regenerate)"
     exit 0
 fi
 
+# ── Write test skeleton ─────────────────────────────────────────────────────
 if [ "$TYPE" = "skill" ]; then
+
+SOURCE_FILE="\$PLUGIN_DIR/skills/${NAME}/SKILL.md"
+
 cat > "$TEST_FILE" << SKELETON_EOF
 #!/usr/bin/env bash
 # Tests for the ${NAME} skill.
-# Pattern: natural language questions about skill content + triggering tests.
-# Run: bash $TEST_FILE
+#
+# Unit tests:   grep directly on SKILL_FILE — fast, deterministic, no LLM.
+# Triggering:   run_with_plugin — natural language prompt, stream-json.
+# Negative:     assert_skill_not_triggered — prompt that must NOT trigger this skill.
+#
+# Run: bash tests/skills/test-${NAME}.sh
 set -uo pipefail
 
 SCRIPT_DIR="\$(cd "\$(dirname "\$0")" && pwd)"
 source "\$SCRIPT_DIR/test-helpers.sh"
 
-echo "=== Test: ${NAME} skill ==="
-echo ""
+SKILL_FILE="${SOURCE_FILE}"
+SKILL_NAME="${NAME}"
+passed=0; failed=0
 
-# ── Unit tests (ask knowledge questions about skill content) ────────────────
-# TODO: Replace these placeholders with real claims from skills/${NAME}/SKILL.md
-
-echo "Test 1: [replace with a behavioral claim from the skill]"
-output=\$(run_claude "In the ${NAME} skill, what is [specific behavior]?" 3)
-assert_contains "\$output" "expected pattern" "claim description"
-record \$?
+record() {
+    if [ "\$1" = "pass" ]; then passed=\$((passed+1)); else failed=\$((failed+1)); fi
+}
 
 echo ""
-echo "Test 2: [replace with another behavioral claim]"
-output=\$(run_claude "Does the ${NAME} skill require [X]? What should [Y] do?" 3)
-assert_contains "\$output" "expected pattern" "claim description"
-record \$?
+echo "=== ${NAME} skill — Unit Tests (doc content) ==="
+
+# ── Unit tests: grep on SKILL_FILE ─────────────────────────────────────────
+# TODO: Replace each grep with a real pattern from skills/${NAME}/SKILL.md.
+# Pattern: grep -q "keyword or phrase" "\$SKILL_FILE" && record pass || record fail
+
+# Test 1: [describe the behavioral claim]
+if grep -q "TODO_REPLACE_WITH_KEYWORD" "\$SKILL_FILE"; then
+    echo "  [PASS] [claim description]"; record pass
+else
+    echo "  [FAIL] [claim description] — expected keyword not found"; record fail
+fi
+
+# Test 2: [describe another claim]
+if grep -q "TODO_REPLACE_WITH_KEYWORD_2" "\$SKILL_FILE"; then
+    echo "  [PASS] [claim description]"; record pass
+else
+    echo "  [FAIL] [claim description] — expected keyword not found"; record fail
+fi
+
+# Test 3: Do NOT use example — skill should have a negative constraint
+if grep -qiE "Do NOT|NOT use|never" "\$SKILL_FILE"; then
+    echo "  [PASS] negative constraints documented"; record pass
+else
+    echo "  [FAIL] no negative constraints found"; record fail
+fi
 
 echo ""
-echo "Test 3: [replace with an ordering or sequencing claim]"
-output=\$(run_claude "In ${NAME}, what comes first: [A] or [B]?" 3)
-assert_order "\$output" "pattern_a" "pattern_b" "[A] before [B]"
-record \$?
+echo "=== ${NAME} skill — Triggering Tests ==="
+
+# ── Triggering test: natural language — NO skill name in prompt ─────────────
+# CHEAT MODE: "use the ${NAME} skill"      ← do not use
+# REAL TEST:  "[intent that triggers skill without naming it]"
+
+log=\$(run_with_plugin "TODO_REPLACE_WITH_NATURAL_LANGUAGE_PROMPT")
+assert_skill_triggered "\$log" "\$SKILL_NAME" "triggers on natural language"
+result=\$?; rm -f "\$log"
+[ "\$result" -eq 0 ] && record pass || record fail
 
 echo ""
+echo "=== ${NAME} skill — Negative Tests ==="
 
-# ── Triggering tests (natural language — NO skill name in prompt) ───────────
-# TODO: Replace with real prompts a user would type without knowing the skill exists.
-# CHEAT MODE: "use the ${NAME} skill" — do not use
-# REAL TEST:  "[natural user intent that should trigger this skill]"
-
-echo "Test 4: [natural language triggering prompt]"
-log=\$(run_with_plugin "[replace: natural user query without skill name]")
-assert_skill_triggered "\$log" "${NAME}" "triggers on natural query"
-record \$?
-rm -f "\$log"
-
-echo ""
-echo "Test 5: negative — unrelated prompt should NOT trigger"
+# ── Negative test: must NOT trigger on unrelated prompt ────────────────────
 log=\$(run_with_plugin "what is a binary search tree?")
-# assert_not_skill_triggered "\$log" "${NAME}" "no trigger on unrelated prompt"
-record 0  # TODO: implement negative assertion
-rm -f "\$log"
+assert_skill_not_triggered "\$log" "\$SKILL_NAME" "no trigger on unrelated query"
+result=\$?; rm -f "\$log"
+[ "\$result" -eq 0 ] && record pass || record fail
 
 echo ""
-
-summary
+echo "Results: \$passed passed, \$failed failed"
+[ "\$failed" -eq 0 ] || exit 1
 SKELETON_EOF
 
 else
 # Agent skeleton
+
+SOURCE_FILE="\$PLUGIN_DIR/agents/${NAME}.md"
+
 cat > "$TEST_FILE" << SKELETON_EOF
 #!/usr/bin/env bash
 # Tests for the ${NAME} agent.
-# Pattern: inject system prompt + scenario, assert on JSON output.
-# Run: bash $TEST_FILE
+# Agent tests inject system prompt + scenario, assert on JSON output.
+# Run: bash tests/agents/test-${NAME}.sh
 set -uo pipefail
 
 SCRIPT_DIR="\$(cd "\$(dirname "\$0")" && pwd)"
 source "\$SCRIPT_DIR/test-helpers.sh"
 
-AGENT_FILE="\$(cd "\$SCRIPT_DIR/../.." && pwd)/agents/${NAME}.md"
+AGENT_FILE="${SOURCE_FILE}"
+passed=0; failed=0
 
-echo "=== Test: ${NAME} agent ==="
-echo ""
-
-# Helper: strip YAML frontmatter and run as agent with injected system prompt
-run_as_agent() {
-    local agent_file="\$1"
-    local scenario="\$2"
-    local system_prompt
-    system_prompt=\$(awk '/^---/{found++; if(found==2){p=1; next}} p' "\$agent_file")
-    claude -p "\$system_prompt
-
----
-
-\$scenario" --model "\$TEST_MODEL" --output-format text 2>/dev/null
+record() {
+    if [ "\$1" = "pass" ]; then passed=\$((passed+1)); else failed=\$((failed+1)); fi
 }
 
-# TODO: Replace with real scenarios from the agent's expected inputs
+echo ""
+echo "=== ${NAME} agent ==="
 
-echo "Test 1: [replace with a scenario description]"
+# ── Agent test: inject system prompt + concrete scenario ────────────────────
+# run_as_agent strips YAML frontmatter and runs agent with scenario as user message.
+
 output=\$(run_as_agent "\$AGENT_FILE" "
-[Replace with a concrete input scenario that forces deterministic output.
-Be specific enough that the agent has no ambiguity.]
+TODO: Replace with a concrete input scenario.
+Be specific enough to force deterministic output.
 Respond with only the JSON object.
 ")
-assert_contains "\$output" '"[expected_field]"' "[field] present in output"
-record \$?
+
+# TODO: Replace with real field assertions
+if echo "\$output" | grep -q '"TODO_field"'; then
+    echo "  [PASS] expected field present"; record pass
+else
+    echo "  [FAIL] expected field missing"
+    echo "  Output: \$(echo "\$output" | head -5)"; record fail
+fi
 
 echo ""
-
-summary
+echo "Results: \$passed passed, \$failed failed"
+[ "\$failed" -eq 0 ] || exit 1
 SKELETON_EOF
+
 fi
 
 chmod +x "$TEST_FILE"
 echo "Wrote: $TEST_FILE"
 echo ""
-echo "Next: fill in the TODO placeholders in $TEST_FILE"
-echo "      Read the source at: $([ "$TYPE" = "skill" ] && echo "skills/$NAME/SKILL.md" || echo "agents/$NAME.md")"
+echo "Next: fill in the TODO patterns — read $([ "$TYPE" = "skill" ] && echo "skills/$NAME/SKILL.md" || echo "agents/$NAME.md") first"
