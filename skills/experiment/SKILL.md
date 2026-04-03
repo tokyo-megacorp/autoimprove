@@ -210,6 +210,7 @@ Write `experiments/<ID>/context.json`:
   "hypothesis": "<hypothesis>",
   "target_files": ["<file1>", "<file2>"],
   "constraints": { "max_files": N, "max_lines": N },
+  "forbidden_paths": ["<path1>"],
   "expected_outcome": "<expected_outcome>",
   "status": "pending",
   "created_at": "<ISO timestamp>"
@@ -533,7 +534,7 @@ Timestamp IDs (`YYYYMMDD-HHMMSS`) are used for manually created experiments. Aut
 
 ## Running Experiments
 
-`remove` never deletes a `running` experiment without an extra confirmation step. The check is based on `status: "running"` in `context.json`. If the context file is absent but a worktree exists, treat as running.
+`remove` never deletes a `running` experiment. Running experiments are excluded from the candidate list entirely (Section 5a). If a run crashes and leaves `status: "running"` stuck, the user must manually edit `context.json` to change the status before removal is possible. This is intentional — automatic removal of in-progress work is too dangerous. The check uses `status: "running"` in `context.json`; if the context file is absent but a worktree exists, treat as running.
 
 ## TSV Row Removal
 

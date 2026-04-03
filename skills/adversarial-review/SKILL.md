@@ -83,6 +83,7 @@ ROUND_MODEL = "haiku"
 MODEL_LADDER = ["haiku", "sonnet", "opus"]
 converged = false
 FILE_FINDING_COUNTS = {}   # {filepath → confirmed finding count} across all rounds; populated after each Judge ruling
+REVIEWED_FILES = Set()     # {filepath} — files sent to the Enthusiast in any prior round (distinct from having findings)
 ALL_TARGET_FILES = []      # ordered list of all file paths present in TARGET_CODE (populated in STEP 1)
 ```
 
@@ -154,8 +155,7 @@ This applies ONLY when `ROUND > 1` AND `ALL_TARGET_FILES.length > 1`. For R1, si
 
 ```
 RELEVANT_FILES = files where FILE_FINDING_COUNTS[file] > 0   # at least 1 confirmed finding
-              + files where FILE_FINDING_COUNTS[file] == 0 AND file never appeared in any prior round's findings
-                           (i.e. not yet seen by the Enthusiast)
+              + files where file not in REVIEWED_FILES        # never sent to the Enthusiast yet (regardless of findings)
 
 # Fallback: if RELEVANT_FILES is empty (all files reviewed, none had findings), include all files
 if RELEVANT_FILES is empty:
@@ -167,6 +167,7 @@ Log: "[AR] R{ROUND} file budget: {RELEVANT_FILES.length}/{ALL_TARGET_FILES.lengt
 # Each section in TARGET_CODE is delimited by "=== {filepath} ===" headers
 # Output format: preserve the same "=== {filepath} ===" delimiter for each included file
 ACTIVE_CODE = join of TARGET_CODE sections for each file in RELEVANT_FILES (in original order)
+REVIEWED_FILES.update(RELEVANT_FILES)   # mark these files as seen by the Enthusiast
 ```
 
 Use `ACTIVE_CODE` in the Enthusiast prompt below instead of `TARGET_CODE` when file budget is active. For R1, single-file, and diff: `ACTIVE_CODE = TARGET_CODE`.
