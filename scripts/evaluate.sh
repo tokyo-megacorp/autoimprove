@@ -6,11 +6,26 @@
 
 set -uo pipefail
 
-CONFIG="${1:-}"
-BASELINE="${2:-/dev/null}"
+# Parse arguments: evaluate.sh <config.json> [baseline.json] [--include-llm-benchmarks]
+CONFIG=""
+BASELINE="/dev/null"
+INCLUDE_LLM_BENCHMARKS=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --include-llm-benchmarks) INCLUDE_LLM_BENCHMARKS=true ;;
+    *)
+      if [ -z "$CONFIG" ]; then
+        CONFIG="$arg"
+      elif [ "$BASELINE" = "/dev/null" ]; then
+        BASELINE="$arg"
+      fi
+      ;;
+  esac
+done
 
 if [ -z "$CONFIG" ]; then
-  echo '{"verdict":"error","reason":"usage: evaluate.sh <config.json> [baseline.json]"}' >&2
+  echo '{"verdict":"error","reason":"usage: evaluate.sh <config.json> [baseline.json] [--include-llm-benchmarks]"}' >&2
   exit 1
 fi
 
@@ -116,9 +131,15 @@ run_benchmarks() {
   BENCH_METRICS='{}'
 
   for (( i=0; i<bench_count; i++ )); do
-    local bench_name bench_cmd
+    local bench_name bench_cmd bench_type
     bench_name=$(jq -r ".benchmarks[$i].name" "$CONFIG")
     bench_cmd=$(jq -r ".benchmarks[$i].command" "$CONFIG")
+    bench_type=$(jq -r ".benchmarks[$i].type // \"deterministic\"" "$CONFIG")
+
+    # Skip llm-judge benchmarks unless --include-llm-benchmarks flag is set
+    if [ "$bench_type" = "llm-judge" ] && [ "$INCLUDE_LLM_BENCHMARKS" = "false" ]; then
+      continue
+    fi
 
     local bench_output
     set +e
@@ -162,6 +183,14 @@ score_results() {
   SCORE_REGRESSED='[]'
 
   for (( i=0; i<bench_count; i++ )); do
+    local bench_type_score
+    bench_type_score=$(jq -r ".benchmarks[$i].type // \"deterministic\"" "$CONFIG")
+
+    # Skip llm-judge benchmarks unless --include-llm-benchmarks flag is set
+    if [ "$bench_type_score" = "llm-judge" ] && [ "$INCLUDE_LLM_BENCHMARKS" = "false" ]; then
+      continue
+    fi
+
     local metric_count
     metric_count=$(jq ".benchmarks[$i].metrics | length" "$CONFIG")
 

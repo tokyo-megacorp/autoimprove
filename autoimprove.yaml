@@ -11,8 +11,15 @@ gates:
   - name: ar_effectiveness_smoke
     command: bash tests/test-ar-effectiveness.sh
 
+# Benchmark types:
+#   type: deterministic  — fast, no LLM sessions, safe to run per-experiment (default)
+#   type: llm-judge      — spawns claude CLI sessions; too slow/expensive for per-experiment
+#                          use. evaluate.sh skips these unless --include-llm-benchmarks is
+#                          passed. Intended for periodic/weekly quality checks only.
+
 benchmarks:
   - name: self-metrics
+    type: deterministic
     command: bash benchmark/self-metrics.sh
     metrics:
       - name: test_count
@@ -34,6 +41,7 @@ benchmarks:
         significance: 0.0
 
   - name: skill-coverage
+    type: deterministic
     command: |
       COUNT=$(find skills/ -name "SKILL.md" -exec grep -l ".\{50\}" {} \; | wc -l | tr -d ' ')
       TOTAL=$(find skills/ -name "SKILL.md" | wc -l | tr -d ' ')
@@ -46,6 +54,7 @@ benchmarks:
         significance: 0.01
 
   - name: agent-completeness
+    type: deterministic
     command: |
       COUNT=$(find agents/ -name "*.md" | while read f; do [ $(wc -l < "$f") -ge 20 ] && echo "$f"; done | wc -l | tr -d ' ')
       echo "{\"agent_completeness\": $COUNT}"
@@ -57,6 +66,7 @@ benchmarks:
         significance: 0.01
 
   - name: prompt-quality
+    type: deterministic
     command: bash benchmark/self-metrics.sh
     metrics:
       - name: skill_depth
