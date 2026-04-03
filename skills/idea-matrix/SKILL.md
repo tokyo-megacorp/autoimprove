@@ -449,7 +449,7 @@ After the human-readable report, output the full structured data:
     "winner": "<cell label>",
     "winner_cell": <cell number>,
     "winner_composite": <avg score>,
-    "verdict_type": "go | conditional | no_clear_winner",
+    "verdict_type": "go | conditional | no_clear_winner | narrow_win",
     "conditions": ["<what must be true for the winner to succeed>"],
     "reasoning": "<why this emerged — cite scores>",
     "dealbreakers": [{ "cell": <N>, "reason": "<why>" }],
@@ -544,7 +544,7 @@ const DATA = {
 
 Skip this step entirely if the user declines or if `--brief` mode is active (brief mode is for pipeline handoff, not interactive review).
 
-## Final Step - Cleanup
+## Cleanup
 
 Before leaving the execution flow, close all todos explicitly:
 
@@ -567,7 +567,7 @@ TodoWrite([
 
 # 8. Write Telemetry
 
-Non-fatal — skip silently if any write fails. Telemetry MUST NOT block the matrix output or raise errors to the user.
+Non-fatal — if any individual file write fails, skip that file and continue with the remaining writes. Telemetry MUST NOT block the matrix output or raise errors to the user.
 
 **Generate RUN_ID:** `YYYYMMDD-HHMMSS-<problem-slug>` where the problem slug is the `PROBLEM` string lowercased, non-alphanumeric characters replaced with `-`, truncated to 40 characters, and trailing `-` stripped.
 
@@ -587,7 +587,7 @@ Store: `MATRIX_RUN_DIR=~/.autoimprove/matrix-runs/<RUN_ID>`.
   "model": "haiku",
   "brief_mode": <true|false>,
   "cell_count": 9,
-  "error_count": <errors field from structured JSON>
+  "errors": <errors field from structured JSON>
 }
 ```
 
@@ -627,7 +627,8 @@ The `convergence` object from the structured JSON output (step 6e), plus `devil_
 
 | Cell | Label | Feas. | Risk | Synergy | Cost | Avg | Dealbreaker |
 |------|-------|-------|------|---------|------|-----|-------------|
-<one row per cell from RESULTS>
+| 1A | Approach Name | 4/5 | 3/5 | 4/5 | 2/5 | 3.25 | none |
+<one row per remaining cell from RESULTS>
 
 ## Devil's Advocate
 
