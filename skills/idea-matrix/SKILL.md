@@ -265,6 +265,39 @@ Wait for all 9 agents to complete before proceeding to synthesis.
 
 ---
 
+# 5.5. Pre-Synthesis Model Escalation Check
+
+After collecting all 9 results and before beginning synthesis, run two escalation checks. This mirrors the two-path pattern in adversarial-review step 3C.
+
+**Path A — Hard escalation (anomaly-based):**
+
+Count cells where `error == "malformed_json"` OR `error == "sparse_output"` (i.e., cells that returned an error record rather than valid scores).
+
+```
+ANOMALOUS_CELLS = count of RESULTS entries where error == "malformed_json" OR error == "sparse_output"
+```
+
+If `ANOMALOUS_CELLS >= 3`:
+- Log: `[matrix] ≥3 anomalous cells — escalating synthesis to Sonnet`
+- Instruct: **"Escalate synthesis to Sonnet: the current model may have caused the high error rate. Ask the user to re-run with a Sonnet model or switch model now before proceeding with synthesis."**
+- Do NOT proceed to synthesis until the user confirms or dismisses the escalation.
+
+Path A fires unconditionally — complexity is irrelevant when data quality is this poor.
+
+**Path B — Soft flag (complexity-based):**
+
+Measure:
+- `BRIEF_LENGTH` = character count of the `BRIEF` string produced in step 3b
+- `OPTION_COUNT` = number of options in `OPTIONS`
+
+If `BRIEF_LENGTH > 500` AND `OPTION_COUNT > 3`:
+- Set `COMPLEXITY_FLAG = true`
+- This flag is NOT acted on here — carry it forward to the self-assessment in step 6f.
+
+Path B is advisory only. Synthesis proceeds regardless.
+
+---
+
 # 6. Synthesize Convergence Report
 
 Analyze all 9 results and produce a convergence report. This is YOUR analysis — not a summary of agent outputs.
@@ -478,9 +511,12 @@ After the human-readable report, output the full structured data:
 - Codebase complexity: [1=trivial config, 3=moderate, 5=complex multi-subsystem]
 - Could synthesis (step 6) have used a cheaper model? [yes/no + one sentence]
 - Error rate: {N}/9 cells had malformed or sparse output
+{IF COMPLEXITY_FLAG == true: "- High-complexity problem — Sonnet synthesis recommended for deeper cross-cutting analysis (BRIEF > 500 chars AND option count > 3)"}
 ```
 
 Populate honestly — this data feeds model-selection calibration.
+
+`COMPLEXITY_FLAG` is set in step 5.5 Path B. If it was not set (simple problem or ≤ 3 options), omit the complexity line.
 
 ---
 
