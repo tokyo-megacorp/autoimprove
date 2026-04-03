@@ -55,6 +55,29 @@ skill_depth=0
 # agent_sections: DEPRECATED — gameable (section count). Kept for backward compat.
 agent_sections=0
 
+# padding_alarm: detect inflation — skills that grew >50% in the last commit without
+# adding code blocks (fenced ```) are likely padding, not quality improvement.
+padding_alarm=0
+while IFS= read -r skill_file; do
+  [ -f "$skill_file" ] || continue
+  # Lines in current HEAD
+  current_lines=$(wc -l < "$skill_file")
+  # Lines in previous commit
+  prev_lines=$(git -C "$DIR" show HEAD~1:"${skill_file#$DIR/}" 2>/dev/null | wc -l || echo "$current_lines")
+  if [ "$prev_lines" -gt 0 ] && [ "$current_lines" -gt "$prev_lines" ]; then
+    growth_pct=$(awk "BEGIN {printf \"%d\", ($current_lines - $prev_lines) * 100 / $prev_lines}")
+    if [ "$growth_pct" -gt 50 ]; then
+      # Growth > 50%: check if new code blocks were added
+      current_blocks=$(grep -c '^```' "$skill_file" 2>/dev/null || echo 0)
+      prev_blocks=$(git -C "$DIR" show HEAD~1:"${skill_file#$DIR/}" 2>/dev/null | grep -c '^```' || echo "$current_blocks")
+      if [ "$current_blocks" -le "$prev_blocks" ]; then
+        # Big growth, no new examples → padding alarm
+        padding_alarm=$((padding_alarm + 1))
+      fi
+    fi
+  fi
+done < <(find "$DIR/skills" -name "SKILL.md" 2>/dev/null)
+
 # ── Structural proxy metrics (anti-Goodhart, Tier 1) ────────────────────────
 # These measure signal that correlates with quality but resists gaming:
 # - example_density: example blocks per skill (concrete > abstract)
@@ -191,4 +214,4 @@ if [ -f "$TSV_PATH" ]; then
   fi
 fi
 
-echo "{\"test_count\": $test_count, \"broken_constraints\": $broken_constraints, \"broken_refs\": $broken_refs, \"skill_doc_coverage\": $skill_doc_coverage, \"agent_completeness\": $agent_completeness, \"skill_depth\": $skill_depth, \"agent_sections\": $agent_sections, \"revert_rate\": $revert_rate, \"bug_escape_rate\": $bug_escape_rate, \"ar_severity_trend\": $ar_severity_trend, \"fix_durability\": $fix_durability, \"example_density\": $example_density, \"imperative_ratio\": $imperative_ratio, \"trigger_precision\": $trigger_precision, \"failure_mode_coverage\": $failure_mode_coverage}"
+echo "{\"test_count\": $test_count, \"broken_constraints\": $broken_constraints, \"broken_refs\": $broken_refs, \"skill_doc_coverage\": $skill_doc_coverage, \"agent_completeness\": $agent_completeness, \"skill_depth\": $skill_depth, \"agent_sections\": $agent_sections, \"revert_rate\": $revert_rate, \"bug_escape_rate\": $bug_escape_rate, \"ar_severity_trend\": $ar_severity_trend, \"fix_durability\": $fix_durability, \"example_density\": $example_density, \"imperative_ratio\": $imperative_ratio, \"trigger_precision\": $trigger_precision, \"failure_mode_coverage\": $failure_mode_coverage, \"padding_alarm\": $padding_alarm}"

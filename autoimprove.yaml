@@ -72,15 +72,10 @@ benchmarks:
     command: bash benchmark/self-metrics.sh
     metrics:
       # skill_depth DISABLED — attack: append "This skill covers X. See also Y." N times → score
-      # rises proportionally with zero quality gain. Agent sees theme "skill quality", knows
-      # the metric measures size, pads descriptions. Observed baseline: 18-line avg → inflates to 80+.
+      # rises proportionally with zero quality gain. Detection: padding_alarm metric below.
       #
-      # agent_sections DISABLED — attack: add empty "## Notes", "## See Also", "## Context"
-      # sections to every agent file → section count rises, content unchanged.
-      #
-      # Both were removed after idea-matrix session (2026-04-03). Attack vectors documented
-      # in issue #100. Replaced by structural proxies below that correlate with quality
-      # but require genuine behavioral content to move the metric.
+      # agent_sections DISABLED — attack: add empty "## Notes", "## See Also" sections →
+      # count rises, content unchanged. Decision documented in issue #100 (2026-04-03).
 
       - name: example_density
         extract: "json:.example_density"
@@ -109,6 +104,13 @@ benchmarks:
         tolerance: 0.0
         significance: 0.01
         description: "Proportion of skills with explicit 'do not / never / forbidden' documentation"
+
+      - name: padding_alarm
+        extract: "json:.padding_alarm"
+        direction: lower_is_better
+        tolerance: 0.0
+        significance: 0.01
+        description: "Skills that grew >50% in last commit with no new code blocks — detects inflation attacks"
 
   - name: reliability
     command: bash benchmark/self-metrics.sh
