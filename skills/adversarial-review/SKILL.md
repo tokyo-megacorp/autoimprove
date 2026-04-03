@@ -342,13 +342,15 @@ Note: This gate applies ONLY after Round 1. Rounds 2+ always proceed if the Judg
 ```
 ## Debate Review — {target} ({total_rounds} rounds{if converged: ", converged at round N"})
 ### Confirmed Findings
-{For each winner ∈ {enthusiast, split}: - **{severity}** [{file}:{line}] {resolution}}
+{For each winner ∈ {enthusiast, split}: - **{severity}** `[{target_type}]` [{file}:{line}] {resolution}}
 ### Debunked Findings
 {For each winner=adversary: - ~~{description}~~ — {adversary reasoning}}
 ### Unresolved Findings (if judge_malformed_json occurred)
 ### Summary
 {JUDGE_OUTPUT.summary} | {if converged: "Converged at round {converged_at_round}."} | {if errors: "Warning: N round(s) had agent errors."}
 ```
+
+**Severity calibration note (display only):** For confirmed findings where `target_type == "spec"`, append ` *(spec: high → medium effective)*` after the severity label when `final_severity == "medium"` and the original finding was `high`. This makes the downgrade visible in the output without affecting the stored ruling.
 
 Structured JSON: `{"total_rounds": N, "converged_at_round": converged_at_round, "confirmed": [...], "debunked": [...], "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0}}`
 

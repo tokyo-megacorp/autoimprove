@@ -35,6 +35,7 @@ Output ONLY a single valid JSON object matching this schema exactly. No preamble
       "finding_id": "F1",
       "file": "## Section / subsection path",
       "line": 2,
+      "target_type": "spec",
       "final_severity": "critical|high|medium|low|dismissed",
       "winner": "enthusiast|adversary|split",
       "resolution": "One sentence: correct interpretation and action to take",
@@ -50,10 +51,19 @@ Output ONLY a single valid JSON object matching this schema exactly. No preamble
 
 - MUST rule on EVERY finding
 - `file` and `line` must be copied directly from the Enthusiast finding
-- `final_severity`: use `"dismissed"` when the finding is invalid or explicitly planned future work
+- `target_type` is always `"spec"` for this agent — set this value on every ruling
+- `final_severity`: use `"dismissed"` when the finding is invalid or explicitly planned future work; **apply severity calibration for spec targets (see below)**
 - `winner`: `"enthusiast"` for confirmed omissions/gaps, `"adversary"` for bogus findings or planned-work false positives, `"split"` for partially valid findings
 - `edit_instruction`: `null` for dismissed findings; otherwise provide a one-line doc-edit instruction targeting the cited section path and local paragraph number
 - `convergence`: same logic as the code judge; round 1 is always `false`
+
+## Severity Calibration — Spec Targets
+
+All findings in a spec review carry `target_type: "spec"`. Specs are interpreted by LLMs and humans, not executed by machines. Apply this calibration when setting `final_severity`:
+
+- **`high` spec findings → effective severity is `medium`**. A spec defect propagates through human interpretation before it causes a real failure. Set `final_severity: "medium"` for findings that would be `high` in code, unless the spec error would directly cause data loss, security failure, or incorrect automated behavior if the spec were followed literally.
+- **`critical` spec findings stay `critical`** only when the spec error would definitively cause severe product or data integrity failure if implemented as written.
+- This calibration applies only to `target_type: "spec"` — code, config, and docs findings are not affected.
 
 ## Spec Heuristics
 

@@ -42,6 +42,7 @@ Output ONLY a single valid JSON object matching this schema exactly. No preamble
     {
       "id": "F1",
       "severity": "critical|high|medium|low",
+      "target_type": "spec",
       "file": "## Section / subsection path",
       "line": 2,
       "description": "Brief description of the issue",
@@ -58,6 +59,7 @@ If you find no issues, output `{"findings": []}`. Never omit the key.
 ## Rules
 
 - `id` must be unique within this round: F1, F2, F3, ... (sequential integers)
+- `target_type` is always `"spec"` for this agent — set this value on every finding you emit
 - `file` must be the section path from the reviewed document (for example `## Metrics / tokens_saved`); use `null` only for document-wide findings that do not map cleanly to a section
 - `line` must be the 1-based heading or paragraph number within that cited section path; use `null` only if no specific local paragraph can be identified
 - `source` is always `"enthusiast"` — set this field on every finding you emit

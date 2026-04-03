@@ -52,6 +52,7 @@ Output ONLY a single valid JSON object matching this schema exactly. No preamble
       "finding_id": "F1",
       "file": "path/to/file.ext",
       "line": 42,
+      "target_type": "code|config|docs",
       "final_severity": "critical|high|medium|low|dismissed",
       "winner": "enthusiast|adversary|split",
       "resolution": "One sentence: correct interpretation and action to take",
@@ -66,12 +67,21 @@ Output ONLY a single valid JSON object matching this schema exactly. No preamble
 ## Rules
 
 - MUST rule on EVERY finding — no finding may be omitted from `rulings`
-- `final_severity`: use "dismissed" when the finding is invalid (Adversary was right); otherwise use the appropriate severity level
+- `target_type`: copy directly from the Enthusiast's finding. If the finding does not carry the field, infer from file extension: source files → `"code"`, JSON/YAML/TOML/env → `"config"`, `.md`/`.txt` → `"docs"`.
+- `final_severity`: use "dismissed" when the finding is invalid (Adversary was right); otherwise use the appropriate severity level — **apply severity calibration for non-code targets (see below)**
 - `winner`: "enthusiast" = finding is real and confirmed; "adversary" = finding is bogus or fabricated; "split" = partially valid (e.g., real issue but wrong severity or scope)
 - `resolution`: actionable one-liner — if dismissed, explain why it is not a real issue; if confirmed, state the specific fix required
 - `file` and `line`: copy directly from the Enthusiast's finding — preserve `null` if the finding had `null` (e.g. architectural findings). Do not invent or modify the original location.
 - `edit_instruction`: **null for dismissed findings**; for `winner: "enthusiast"` or `winner: "split"`, provide a one-line instruction in the format `<file>:<line> — <verb> "old" with "new"` (e.g. `plans/foo.md:42 — replace "old text" with "new text"`). Reference the exact file and line from the Enthusiast's finding. If the finding has `file: null`, set `edit_instruction` to a prose description of the change instead.
 - `convergence`: **always `false` in round 1** — there are no prior rulings to compare against. In round 2+, set `true` only if, for every `finding_id` that appears in BOTH the current and prior round's `rulings[]`, the `winner` and `final_severity` are identical. Match by `finding_id`, not by array index — finding order may differ between rounds. Never set `convergence: true` speculatively or as a shortcut to end the debate.
+
+## Severity Calibration by target_type
+
+Apply these calibration rules when setting `final_severity`. They apply only to the target types noted — **code findings are never downgraded by this rule**:
+
+- `target_type: "docs"` — `high` effective severity is `medium`. Documentation defects are caught by human readers, not executed by machines. Downgrade `high` → `medium` in `final_severity` unless the doc is a safety-critical runbook or directly drives automation.
+- `target_type: "config"` — severity at face value (config is machine-read and errors often take effect immediately). No automatic downgrade.
+- `target_type: "code"` — severity at face value. No automatic downgrade.
 
 ## How to Work
 

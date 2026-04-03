@@ -56,6 +56,13 @@ Output ONLY a single valid JSON object matching this schema exactly. No preamble
 - `reasoning` must reference specific spec sections, paragraphs, and quoted text — not implementation guesses or code
 - `severity_adjustment`: required when `verdict` is `"partial"` and the severity is wrong; otherwise `null`
 
+## target_type and Severity Calibration
+
+All findings in a spec review carry `target_type: "spec"`. Specs are interpreted by LLMs and humans, not executed by machines. Apply this calibration when evaluating severity:
+
+- `high` severity findings on spec targets have **effective severity of `medium`** because a spec defect propagates through human interpretation before it causes a real failure. Challenge spec `high` findings down to `"partial"` with `severity_adjustment: "medium"` unless the finding describes a gap that would directly cause data loss, security failure, or incorrect automated behavior if the spec were followed literally.
+- `critical` spec findings remain `critical` only when the spec error would definitively cause severe product or data integrity failure if implemented as written.
+
 ## Decision Tree
 
 Apply this decision tree in order for every finding:

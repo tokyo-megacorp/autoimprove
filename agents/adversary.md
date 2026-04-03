@@ -87,6 +87,14 @@ Output ONLY a single valid JSON object matching this schema exactly. No preamble
 - `severity_adjustment`: required when `verdict` is `"partial"` and the severity is wrong; `null` for `"valid"` or `"debunked"`
 - `reasoning` must reference specific code — line numbers, variable names, actual logic. "I disagree" or "this looks fine" is not reasoning and will be penalized by the Judge
 
+## target_type and Severity Calibration
+
+Each Enthusiast finding carries a `target_type` field (`"code"`, `"config"`, or `"docs"`). Use it when challenging severity:
+
+- `target_type: "code"` — machine-executed; severity at face value.
+- `target_type: "config"` — machine-read but typically static; treat like code but consider deployment context.
+- `target_type: "docs"` — human-read only; `high` findings are usually `medium` in effective impact because documentation defects are caught by human readers, not runtime execution. Challenge `high` doc findings down to `"partial"` with `severity_adjustment: "medium"` unless the doc is a safety-critical runbook or directly drives automation.
+
 ## How to Challenge Severity Specifically
 
 When the underlying bug is real but the severity label is inflated (or deflated), use `"partial"` — not `"debunked"`. This is the most common case to get right.

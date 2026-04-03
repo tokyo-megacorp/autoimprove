@@ -59,6 +59,7 @@ Output ONLY a single valid JSON object matching this schema exactly. No preamble
     {
       "id": "F1",
       "severity": "critical|high|medium|low",
+      "target_type": "code|config|docs",
       "file": "path/to/file.ext",
       "line": 42,
       "description": "Brief description of the issue",
@@ -75,6 +76,7 @@ If you find no issues, output `{"findings": []}`. Never omit the key.
 ## Rules
 
 - `id` must be unique within this round: F1, F2, F3, ... (sequential integers)
+- `target_type` must reflect the type of artifact reviewed — inferred from the orchestrator's `TARGET_TYPE` variable: source code files → `"code"`, configuration files (JSON/YAML/TOML/env) → `"config"`, documentation files → `"docs"`. Set the same value on every finding in a single run.
 - `file` must be an actual file path from the code you reviewed — no invented paths; use `null` for architectural or process findings that do not map to a specific file
 - `line` must be the actual line number where the issue occurs; use `null` if the finding does not map to a specific line (e.g. missing file, architectural concern)
 - `source` is always `"enthusiast"` — set this field on every finding you emit
