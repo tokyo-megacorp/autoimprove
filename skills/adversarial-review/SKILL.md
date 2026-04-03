@@ -123,7 +123,7 @@ Recent changes:
 ```
 MAP_TOKENS      = len(MAP_SUMMARY) / 3.5   # character-based estimate
 FULLCODE_TOKENS = len(TARGET_CODE) / 3.5
-TOKEN_RATIO     = MAP_TOKENS / FULLCODE_TOKENS
+TOKEN_RATIO     = MAP_TOKENS / FULLCODE_TOKENS if FULLCODE_TOKENS > 0 else 0.0
 ```
 
 Log: `"[AR] map-mode token estimate: map={MAP_TOKENS:.0f} / full={FULLCODE_TOKENS:.0f} (ratio={TOKEN_RATIO:.2f})"`
@@ -298,11 +298,20 @@ Find issues NOT in the blocklist only.</if>"
 if MAP_MODE == "hybrid":
   INJECTED_SECTIONS = []   # reset for this round
   for each line in raw Enthusiast response matching "REQUEST_SECTION: <filepath>:<start>-<end>":
-    parse filepath, start_line, end_line
-    if filepath in ALL_TARGET_FILES AND start_line <= end_line:
-      snippet = extract lines start_line..end_line from TARGET_CODE section for filepath
-      INJECTED_SECTIONS.append("=== {filepath}:{start_line}-{end_line} ===\n{snippet}")
-      log: "[AR] hybrid: injected {filepath}:{start_line}-{end_line} ({end_line-start_line+1} lines)"
+    parse filepath, start_line_str, end_line_str from tag
+    start_line = int(start_line_str) if start_line_str is a valid integer else null
+    end_line   = int(end_line_str)   if end_line_str   is a valid integer else null
+    if start_line is null or end_line is null:
+      log: "[AR] WARN: malformed REQUEST_SECTION line numbers"
+      skip this tag
+    start_line = max(1, start_line)
+    end_line   = min(end_line, FILE_MAP[filepath].line_count if available else line_count_of_file(filepath))
+    if filepath not in ALL_TARGET_FILES OR start_line > end_line:
+      log: "[AR] WARN: invalid REQUEST_SECTION range"
+      skip this tag
+    snippet = extract lines start_line..end_line from TARGET_CODE section for filepath
+    INJECTED_SECTIONS.append("=== {filepath}:{start_line}-{end_line} ===\n{snippet}")
+    log: "[AR] hybrid: injected {filepath}:{start_line}-{end_line} ({end_line-start_line+1} lines)"
 ```
 
 **Validate output (MANDATORY — do not skip):**
