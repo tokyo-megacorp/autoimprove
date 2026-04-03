@@ -71,8 +71,16 @@ benchmarks:
     type: deterministic
     command: bash benchmark/self-metrics.sh
     metrics:
-      # skill_depth and agent_sections are DISABLED — gameable (word/section count)
-      # Replaced by structural proxy metrics below (anti-Goodhart, Creative-1 plan)
+      # skill_depth DISABLED — attack: append "This skill covers X. See also Y." N times → score
+      # rises proportionally with zero quality gain. Agent sees theme "skill quality", knows
+      # the metric measures size, pads descriptions. Observed baseline: 18-line avg → inflates to 80+.
+      #
+      # agent_sections DISABLED — attack: add empty "## Notes", "## See Also", "## Context"
+      # sections to every agent file → section count rises, content unchanged.
+      #
+      # Both were removed after idea-matrix session (2026-04-03). Attack vectors documented
+      # in issue #100. Replaced by structural proxies below that correlate with quality
+      # but require genuine behavioral content to move the metric.
 
       - name: example_density
         extract: "json:.example_density"
