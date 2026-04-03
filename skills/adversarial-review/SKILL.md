@@ -206,14 +206,17 @@ For `TARGET_TYPE == "spec"`:
 
 Do not replace `TARGET_CODE`; this brief is additive and exists only to orient agents before they read the full code/spec.
 
-**Init todos:**
+**Create progress tasks (MANDATORY — do this before dispatching any agent):**
+
 ```
 TodoWrite([
-  {id: "enthusiast", content: "🔍 Enthusiast — surface findings", status: "pending"},
-  {id: "adversary",  content: "⚔️ Adversary — challenge findings", status: "pending"},
-  {id: "judge",      content: "⚖️ Judge — rule on debate",         status: "pending"}
+  {id: "enthusiast", content: "🔍 Enthusiast: find strengths and risks", status: "pending"},
+  {id: "adversary",  content: "⚔️ Adversary: challenge all findings",   status: "pending"},
+  {id: "judge",      content: "⚖️ Judge: deliver final verdict",         status: "pending"}
 ])
 ```
+
+Mark each task `in_progress` immediately before running its agent, and `completed` immediately after. This ensures the E→A→J chain is always visible in the todo list throughout the review.
 
 ---
 
