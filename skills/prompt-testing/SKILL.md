@@ -31,17 +31,24 @@ allowed-tools: [Read, Write, Bash, Glob, Grep]
 
 When given a skill or agent name, write test files — don't explain theory.
 
-**For skills** (default starting point — unit tests):
-1. Read the target skill's SKILL.md
-2. Extract 6–10 behavioral claims: things the skill says it does, requires, or produces
-3. For each claim, write one `run_claude` unit test that asks a natural language question about the skill content
-4. Also write 2–3 triggering tests with natural language prompts (no skill name in the prompt)
-5. Write the test file to `test/skills/test-<skill-name>.sh`
+### Step 1: Scaffold (run the script)
 
-**For agents** (agent tests):
-1. Read the target agent's `.md`
-2. Write a `run_as_agent` test that injects a scenario and asserts on the JSON output
-3. Write to `test/agents/test-<agent-name>.sh`
+```bash
+bash skills/prompt-testing/scaffold-test.sh skill <skill-name>
+# or
+bash skills/prompt-testing/scaffold-test.sh agent <agent-name>
+```
+
+This generates:
+- `test/skills/test-<name>.sh` (or `test/agents/`) with placeholder tests
+- `test/skills/test-helpers.sh` if not present
+
+### Step 2: Fill in assertions
+
+1. Read the target skill's SKILL.md (or agent's `.md`)
+2. Extract 6–10 behavioral claims — things the skill says it does, requires, or produces
+3. For each claim, replace a placeholder with a `run_claude` unit test
+4. Replace triggering placeholders with real natural language prompts
 
 **Prompt pattern (unit test):**
 ```
@@ -314,6 +321,73 @@ claude -p "$PROMPT" \
 `--max-turns 3` is enough for triggering tests — you only need to verify the skill fires, not complete the workflow.
 
 `--model haiku` keeps costs low — triggering tests check tool dispatch, not output quality. Override with `TEST_MODEL=sonnet` when debugging failures.
+
+---
+
+## 📋 test-helpers.sh — Inline Reference
+
+The scaffold script writes this file automatically. Inline copy for reference when writing assertions:
+
+```bash
+#!/usr/bin/env bash
+# Cross-platform (macOS + Linux) — no GNU timeout dependency.
+TEST_MODEL="${TEST_MODEL:-haiku}"
+PLUGIN_DIR="${PLUGIN_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+
+run_claude() {
+    local prompt="$1"; local max_turns="${2:-3}"
+    claude -p "$prompt" --model "$TEST_MODEL" --output-format text --max-turns "$max_turns" 2>/dev/null
+}
+
+run_with_plugin() {
+    local prompt="$1"; local max_turns="${2:-3}"; local log; log=$(mktemp)
+    claude -p "$prompt" --model "$TEST_MODEL" --plugin-dir "$PLUGIN_DIR" \
+        --dangerously-skip-permissions --max-turns "$max_turns" \
+        --verbose --output-format stream-json > "$log" 2>&1
+    echo "$log"
+}
+
+assert_contains() {
+    local output="$1"; local pattern="$2"; local name="${3:-test}"
+    if echo "$output" | grep -qiE "$pattern"; then echo "  [PASS] $name"; return 0
+    else echo "  [FAIL] $name — expected: $pattern"; echo "$output" | head -3; return 1; fi
+}
+
+assert_not_contains() {
+    local output="$1"; local pattern="$2"; local name="${3:-test}"
+    if echo "$output" | grep -qiE "$pattern"; then echo "  [FAIL] $name — found: $pattern"; return 1
+    else echo "  [PASS] $name"; return 0; fi
+}
+
+assert_order() {
+    local output="$1"; local a="$2"; local b="$3"; local name="${4:-order}"
+    local la lb
+    la=$(echo "$output" | grep -niE "$a" | head -1 | cut -d: -f1)
+    lb=$(echo "$output" | grep -niE "$b" | head -1 | cut -d: -f1)
+    if [ -n "$la" ] && [ -n "$lb" ] && [ "$la" -lt "$lb" ]; then echo "  [PASS] $name"; return 0
+    else echo "  [FAIL] $name — '$a'(L$la) not before '$b'(L$lb)"; return 1; fi
+}
+
+assert_skill_triggered() {
+    local log="$1"; local skill="$2"; local name="${3:-skill triggered}"
+    if grep -q '"name":"Skill"' "$log" && grep -qE '"skill":"([^"]*:)?'"$skill"'"' "$log"; then
+        echo "  [PASS] $name"; return 0
+    else echo "  [FAIL] $name — skills fired: $(grep -o '"skill":"[^"]*"' "$log" | sort -u)"; return 1; fi
+}
+
+assert_no_premature_work() {
+    local log="$1"; local name="${2:-no premature work}"
+    local first; first=$(grep -n '"name":"Skill"' "$log" | head -1 | cut -d: -f1)
+    [ -z "$first" ] && echo "  [FAIL] $name (skill never called)" && return 1
+    local pre; pre=$(head -n "$first" "$log" | grep '"type":"tool_use"' | grep -v '"name":"Skill"' | grep -v '"name":"TodoWrite"')
+    if [ -n "$pre" ]; then echo "  [FAIL] $name — premature: $(echo "$pre" | head -1)"; return 1
+    else echo "  [PASS] $name"; return 0; fi
+}
+
+PASS=0; FAIL=0
+record() { if [ "$1" -eq 0 ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); fi; }
+summary() { echo ""; echo "Results: $PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]; }
+```
 
 ---
 
