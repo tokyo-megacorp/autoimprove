@@ -33,13 +33,21 @@ When given a skill or agent name, write test files — don't explain theory.
 
 ### Step 1: Scaffold (run the script)
 
+**Single component:**
 ```bash
 bash skills/prompt-testing/scaffold-test.sh skill <skill-name>
-# or
 bash skills/prompt-testing/scaffold-test.sh agent <agent-name>
 ```
 
-This generates:
+**Whole repo (scan for gaps, prioritized by recency):**
+```bash
+bash skills/prompt-testing/scan-and-scaffold.sh            # scaffold all untested
+bash skills/prompt-testing/scan-and-scaffold.sh --dry-run  # preview gaps only
+bash skills/prompt-testing/scan-and-scaffold.sh --skills   # skills only
+bash skills/prompt-testing/scan-and-scaffold.sh --agents   # agents only
+```
+
+Both generate:
 - `test/skills/test-<name>.sh` (or `test/agents/`) with placeholder tests
 - `test/skills/test-helpers.sh` if not present
 
