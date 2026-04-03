@@ -97,7 +97,7 @@ Without a metric, the grind loop cannot improve it.
 
 Checklist for each new feature:
 - [ ] Add a metric to autoimprove.yaml (or extend an existing benchmark script)
-- [ ] Run `bash scripts/evaluate.sh` to capture the new baseline
+- [ ] Run `/autoimprove run --experiments 1` to capture the new epoch baseline
 - [ ] Verify the metric direction (higher_is_better vs lower_is_better)
 - [ ] Add the feature's files to a relevant theme's focus_paths
 
@@ -107,5 +107,5 @@ When you add a new feature, add its metric immediately — not at the end of the
 
 1. Add the metric to `autoimprove.yaml` under the appropriate benchmark
 2. Update the benchmark script to compute and output the new field
-3. Run `bash scripts/evaluate.sh` to capture the baseline (this becomes the epoch baseline)
+3. Start a new `/autoimprove run` session — the orchestrator captures a fresh epoch baseline at session start, which includes your new metric
 4. The grind loop can now optimize the feature starting from the next experiment
