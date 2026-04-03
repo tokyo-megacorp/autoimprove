@@ -8,6 +8,11 @@ Continue from where SKILL.md left off. All session state (config, baselines, sta
 
 Initialize: `experiment_count = 0`, `session_keeps = 0`, `session_fails = 0`, `session_regresses = 0`, `session_neutrals = 0`.
 
+Also initialize from config:
+```
+EXPERIMENTER_MODEL = config.budget.experimenter_model ?? "sonnet"
+```
+
 ## 3a. Budget Check
 
 ```
@@ -141,12 +146,14 @@ This is a hard check — a contaminated prompt means the Goodhart boundary has b
 
 Experiments always run **one at a time** — the TaskTree chain enforces this (each experiment is blocked by the previous). Spawn one experimenter and wait for it to complete before the loop returns to 3a.
 
+EXPERIMENTER_MODEL is read from autoimprove.yaml `budget.experimenter_model` (default: "sonnet").
+
 ```
 Agent(
   prompt: "<experimenter prompt>",
   agent: "experimenter",
   isolation: "worktree",
-  model: "sonnet"
+  model: EXPERIMENTER_MODEL
 )
 ```
 

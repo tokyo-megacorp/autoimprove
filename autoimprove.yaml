@@ -5,6 +5,7 @@ project:
 budget:
   max_experiments_per_session: 10
   max_parallel: 1  # max concurrent grind loops; overridden by dynamic scaling (1-5 based on weekly burn rate)
+  experimenter_model: sonnet  # model for experimenter agent; set to "haiku" for cost-optimized mode
 
 gates:
   - name: evaluate_tests

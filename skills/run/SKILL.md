@@ -78,7 +78,7 @@ TodoWrite([{id: "prereqs", content: "✅ Prerequisites check", status: "complete
 
 Read `autoimprove.yaml` and parse it. Required sections:
 - `project` — name, path
-- `budget` — `max_experiments_per_session`
+- `budget` — `max_experiments_per_session`, `experimenter_model` (default: `"sonnet"`)
 - `gates` — array of `{name, command}`
 - `benchmarks` — array of `{name, command, metrics: [{name, extract, direction, tolerance?, significance?}]}`
 - `themes` — strategy, priorities (theme→weight map), `cooldown_per_theme`
