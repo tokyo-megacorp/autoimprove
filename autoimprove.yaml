@@ -82,6 +82,38 @@ benchmarks:
         tolerance: 0.0
         significance: 0.01
 
+  - name: reliability
+    command: bash benchmark/self-metrics.sh
+    type: deterministic
+    metrics:
+      - name: revert_rate
+        extract: "json:.revert_rate"
+        direction: lower_is_better
+        tolerance: 0.0
+        significance: 0.01
+        description: "Proportion of last 50 commits that are reverts (0.0 = no reverts)"
+
+      - name: bug_escape_rate
+        extract: "json:.bug_escape_rate"
+        direction: lower_is_better
+        tolerance: 0.0
+        significance: 0.01
+        description: "Open bug issues / total open issues (0.0 = no open bugs)"
+
+      - name: ar_severity_trend
+        extract: "json:.ar_severity_trend"
+        direction: lower_is_better
+        tolerance: 0.0
+        significance: 1.0
+        description: "Count of high-severity AR findings in last 3 runs (lower is better)"
+
+      - name: fix_durability
+        extract: "json:.fix_durability"
+        direction: higher_is_better
+        tolerance: 0.0
+        significance: 0.01
+        description: "Proportion of kept experiments not followed by a discard within 5 experiments (1.0 = perfect)"
+
   # NOTE: ar-effectiveness and matrix-effectiveness benchmarks REMOVED (2026-03-30)
   # Root cause of Run 10 (5/5 "unknown") and Run 11 (stuck).
   # These benchmarks spawn claude CLI sessions (haiku+sonnet) per experiment,
