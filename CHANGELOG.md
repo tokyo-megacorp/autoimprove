@@ -2,6 +2,20 @@
 
 All notable changes to autoimprove are documented here.
 
+## [0.5.1] — 2026-04-03 — Xavier School Migration & Skill Polish
+
+### Added
+- `feat(xavier-school)`: migrate polish, rubrics (5 types), reviewer, transformer, and skill-sentinel hook from xavier-school into autoimprove — deregistered xavier-school as separate plugin (#99, #100, #101)
+- `feat(hooks)`: PostToolUse Write sentinel — suggests `autoimprove:polish` when skill/agent/hook files are edited
+
+### Fixed
+- `fix(docs)`: onboarding guide clarifies `/autoimprove run --experiments 1` for epoch baseline capture (#98)
+- `fix(docs)`: research memo trimmed to 442 words (≤500-word limit)
+
+### Other
+- `ux(ar)`: explicit TodoWrite for E→A→J progress tracking (#263 claudinho)
+- `research`: autoresearch competitive threat assessment — verdict: complement, not threat (#219 claudinho)
+
 ## [0.5.0] — 2026-04-03 — AR Spec-Mode, Map-Mode, Reliability Metrics & Haiku Routing
 
 ### Added
