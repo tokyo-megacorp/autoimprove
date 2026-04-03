@@ -131,6 +131,8 @@ themes:
       agent_prompts: 2        # improve agent instructions for better accuracy
       command_docs: 1         # improve command descriptions and argument hints
       refactoring: 1
+      execution_clarity: 2   # improve prompts/docs for unambiguous execution (Haiku compatibility)
+      # TODO: add haiku_compatibility_score benchmark once #53 spike results are available
       # skill_effectiveness REMOVED (2026-03-30): no focus_paths defined,
       # dependent benchmarks (ar/matrix-effectiveness) are LLM-based and too
       # slow/expensive for per-experiment evaluation. Caused Run 10 "unknown" cascade.
@@ -147,6 +149,12 @@ themes:
       refactoring:
         - "scripts/**"
         - "skills/run/references/*.md"
+      execution_clarity:
+        - "skills/run/references/loop.md"
+        - "skills/run/SKILL.md"
+        - "agents/experimenter.md"
+        - "agents/proposer.md"
+        - "agents/researcher.md"
 
 constraints:
   forbidden_paths:
