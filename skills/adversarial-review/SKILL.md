@@ -1,9 +1,16 @@
 ---
 name: adversarial-review
 description: "Run an adversarial Enthusiast→Adversary→Judge debate review on code. Automatically converges — no manual round control needed. Use when the user says 'adversarial review', 'debate review', 'run a review round', 'do a review round', 'review code with debate agents', 'i want an adversarial review', or '/autoimprove review'. Do NOT trigger on generic 'review' requests or PR reviews. Takes a file, diff, or PR as target."
-argument-hint: "[file|diff]"
+argument-hint: "[file|diff] [--map-mode none|map|hybrid]"
 allowed-tools: [Read, Glob, Grep, Bash, Agent, TodoWrite, TodoRead]
 ---
+
+<!-- EXPERIMENTAL FLAG -->
+<!-- --map-mode [none|map|hybrid]  (default: none = current full-code behavior) -->
+<!-- Experimental flag — for A/B/C benchmarking of context-map approaches. -->
+<!-- Mode none: current behavior, full TARGET_CODE passed to every agent every round. -->
+<!-- Mode map:  structured map only (function sigs, TODOs, git log) — no raw code. -->
+<!-- Mode hybrid: map as index + agents may request specific sections via REQUEST_SECTION. -->
 
 <SKILL-GUARD>
 You are NOW executing the adversarial-review skill. Do NOT invoke this skill again via the Skill tool — execute the steps below directly. Invoking it again would create an infinite loop.
@@ -49,6 +56,78 @@ Store as `TARGET_CODE`. If empty: stop — nothing to review.
 
 **After storing `TARGET_CODE`:** Extract the ordered list of file paths from the `=== {filepath} ===` headers and store as `ALL_TARGET_FILES`. For single-file and diff targets this list will have 0 or 1 entries; the file budget only activates when `ALL_TARGET_FILES.length > 1`.
 
+## STEP 1b — Parse --map-mode Flag
+
+Parse the invocation arguments for `--map-mode`:
+```
+MAP_MODE = argument value of --map-mode, or "none" if flag absent
+```
+
+Valid values: `none`, `map`, `hybrid`. If an invalid value is supplied, log a warning and fall back to `none`.
+
+Log: `"[AR] map-mode: {MAP_MODE}"`
+
+## STEP 1c — Generate Map (map and hybrid modes only)
+
+**Skip entirely if `MAP_MODE == "none"`.** Proceed directly to STEP 2.
+
+For each file in `ALL_TARGET_FILES`, generate a `FILE_MAP` entry:
+
+```
+For each filepath in ALL_TARGET_FILES:
+  lines = content of file (already in TARGET_CODE)
+  line_count = total number of lines
+
+  # Signatures / structure
+  if filepath ends with .sh or .bash:
+    signatures = lines matching regex ^[a-zA-Z_][a-zA-Z0-9_]*\s*\(\s*\) — capture name + line number
+  elif filepath ends with .md:
+    signatures = lines matching ^## — capture heading text + line number
+  else:
+    signatures = first 5 lines (as "module header")
+
+  # Markers
+  markers = lines containing TODO, FIXME, or HACK — capture line number + text (truncated to 80 chars)
+
+  # Recent git history
+  git_log = run: git log --oneline -3 -- {filepath}
+            if command fails or no output: git_log = "(no git history)"
+
+  FILE_MAP[filepath] = {
+    path: filepath,
+    line_count: line_count,
+    signatures: [...],   # [{line: N, text: "..."}]
+    markers: [...],      # [{line: N, text: "..."}]
+    git_log: git_log
+  }
+```
+
+Combine all `FILE_MAP` entries into `MAP_SUMMARY` — a structured text block:
+
+```
+=== MAP SUMMARY ===
+<for each file:>
+--- {filepath} ({line_count} lines) ---
+Signatures:
+  L{line}: {text}
+  ...
+Markers (TODO/FIXME/HACK):
+  L{line}: {text}
+  ...
+Recent changes:
+  {git_log}
+
+```
+
+**Token estimation (store for telemetry):**
+```
+MAP_TOKENS      = len(MAP_SUMMARY) / 3.5   # character-based estimate
+FULLCODE_TOKENS = len(TARGET_CODE) / 3.5
+TOKEN_RATIO     = MAP_TOKENS / FULLCODE_TOKENS
+```
+
+Log: `"[AR] map-mode token estimate: map={MAP_TOKENS:.0f} / full={FULLCODE_TOKENS:.0f} (ratio={TOKEN_RATIO:.2f})"`
+
 ---
 
 # STEP 2 — INITIALIZE RUN
@@ -85,6 +164,13 @@ converged = false
 FILE_FINDING_COUNTS = {}   # {filepath → confirmed finding count} across all rounds; populated after each Judge ruling
 REVIEWED_FILES = Set()     # {filepath} — files sent to the Enthusiast in any prior round (distinct from having findings)
 ALL_TARGET_FILES = []      # ordered list of all file paths present in TARGET_CODE (populated in STEP 1)
+# Map mode state (set in STEP 1b / 1c)
+MAP_MODE = "none"          # "none" | "map" | "hybrid"
+MAP_SUMMARY = ""           # structured map block (populated in STEP 1c, empty for MAP_MODE=none)
+MAP_TOKENS = 0             # estimated token count of MAP_SUMMARY
+FULLCODE_TOKENS = 0        # estimated token count of TARGET_CODE
+TOKEN_RATIO = 0.0          # MAP_TOKENS / FULLCODE_TOKENS
+INJECTED_SECTIONS = []     # accumulated REQUEST_SECTION snippets for hybrid mode (cleared each round)
 ```
 
 ## Target Type Detection
@@ -172,19 +258,51 @@ REVIEWED_FILES.update(RELEVANT_FILES)   # mark these files as seen by the Enthus
 
 Use `ACTIVE_CODE` in the Enthusiast prompt below instead of `TARGET_CODE` when file budget is active. For R1, single-file, and diff: `ACTIVE_CODE = TARGET_CODE`.
 
+**Map mode override (applied AFTER file budget logic above):**
+```
+if MAP_MODE == "map":
+  CONTEXT_PAYLOAD = MAP_SUMMARY
+  CONTEXT_TAG = "map"
+  CONTEXT_NOTE = "You are reviewing a structured map, not full source. Flag findings at signature level. You do NOT have access to implementation details."
+elif MAP_MODE == "hybrid":
+  # Start with map; inject any requested sections from prior round
+  CONTEXT_PAYLOAD = MAP_SUMMARY
+  if INJECTED_SECTIONS is not empty:
+    CONTEXT_PAYLOAD += "\n\n=== INJECTED SECTIONS (requested from prior round) ===\n" + join(INJECTED_SECTIONS, "\n---\n")
+  CONTEXT_TAG = "map+sections"
+  CONTEXT_NOTE = "You are reviewing a structured map. To request raw source for a specific range, output a line: REQUEST_SECTION: <filepath>:<start>-<end>"
+else:  # MAP_MODE == "none"
+  CONTEXT_PAYLOAD = ACTIVE_CODE
+  CONTEXT_TAG = "code"
+  CONTEXT_NOTE = ""
+```
+
 **Dispatch — use EXACTLY this Agent call:**
 ```
 Agent(
   subagent_type: AGENT_ENTHUSIAST,
   model: ROUND_MODEL,
-  prompt: "[AR Round {ROUND} — {MODE}] Review the code below. Output ONLY valid JSON per your schema.
+  prompt: "[AR Round {ROUND} — {MODE}] Review the {CONTEXT_TAG} below. Output ONLY valid JSON per your schema.
 <brief>{CONTEXT_BRIEF}</brief>
-<code>{ACTIVE_CODE}</code>
+<{CONTEXT_TAG}>{CONTEXT_PAYLOAD}</{CONTEXT_TAG}>
+<if CONTEXT_NOTE != "">Note: {CONTEXT_NOTE}</if>
 <if round > 1>BLOCKLIST (do not re-raise): {CONFIRMED_LOCATIONS}
 Prior summary: {PRIOR_JUDGE_SUMMARY}
 Find issues NOT in the blocklist only.</if>"
 )
 # Note: <if condition>...</if> blocks are conditional inclusions — include the content only when the condition is true, omit otherwise.
+```
+
+**Hybrid mode — parse REQUEST_SECTION lines (after receiving Enthusiast output):**
+```
+if MAP_MODE == "hybrid":
+  INJECTED_SECTIONS = []   # reset for this round
+  for each line in raw Enthusiast response matching "REQUEST_SECTION: <filepath>:<start>-<end>":
+    parse filepath, start_line, end_line
+    if filepath in ALL_TARGET_FILES AND start_line <= end_line:
+      snippet = extract lines start_line..end_line from TARGET_CODE section for filepath
+      INJECTED_SECTIONS.append("=== {filepath}:{start_line}-{end_line} ===\n{snippet}")
+      log: "[AR] hybrid: injected {filepath}:{start_line}-{end_line} ({end_line-start_line+1} lines)"
 ```
 
 **Validate output (MANDATORY — do not skip):**
@@ -216,6 +334,8 @@ Mark todo complete: `{id: "enthusiast", content: "🔍 AR Round {ROUND}: Enthusi
 
 Mark todo: `{id: "adversary", content: "⚔️ AR Round {ROUND}: Adversary — challenging {NOVEL_FINDINGS.length} findings", status: "in_progress"}`.
 
+**Map mode payload for Adversary:** Use the same `CONTEXT_PAYLOAD` / `CONTEXT_TAG` / `CONTEXT_NOTE` computed in 3A above (do NOT recompute — reuse values set during 3A). For `MAP_MODE == "none"`, this is `TARGET_CODE`.
+
 **Dispatch — use EXACTLY this Agent call:**
 ```
 Agent(
@@ -223,7 +343,8 @@ Agent(
   model: ROUND_MODEL,
   prompt: "[AR Round {ROUND} — {MODE}] Challenge the findings. Output ONLY valid JSON per your schema.
 <brief>{CONTEXT_BRIEF}</brief>
-<code>{TARGET_CODE}</code>
+<{CONTEXT_TAG}>{CONTEXT_PAYLOAD}</{CONTEXT_TAG}>
+<if CONTEXT_NOTE != "">Note: {CONTEXT_NOTE}</if>
 <findings>{ENTHUSIAST_OUTPUT with NOVEL_FINDINGS only}</findings>
 Healthy challenge rate: 15–25%. Validating 100% without pushback = insufficient scrutiny."
 )
@@ -246,6 +367,8 @@ Mark todo: `{id: "adversary", content: "⚔️ AR Round {ROUND}: Adversary ({cha
 
 Mark todo: `{id: "judge", content: "⚖️ AR Round {ROUND}: Judge — ruling on debate", status: "in_progress"}`.
 
+**Map mode payload for Judge:** Use the same `CONTEXT_PAYLOAD` / `CONTEXT_TAG` / `CONTEXT_NOTE` computed in 3A above (reuse, do not recompute). For `MAP_MODE == "none"`, this is `TARGET_CODE`.
+
 **Dispatch — use EXACTLY this Agent call:**
 ```
 Agent(
@@ -253,7 +376,8 @@ Agent(
   model: ROUND_MODEL,
   prompt: "[AR Round {ROUND} — {MODE}] Arbitrate. Output ONLY valid JSON per your schema.
 <brief>{CONTEXT_BRIEF}</brief>
-<code>{TARGET_CODE}</code>
+<{CONTEXT_TAG}>{CONTEXT_PAYLOAD}</{CONTEXT_TAG}>
+<if CONTEXT_NOTE != "">Note: {CONTEXT_NOTE}</if>
 <findings>{ENTHUSIAST_OUTPUT}</findings>
 <verdicts>{ADVERSARY_OUTPUT}</verdicts>
 <if round > 1>Prior rulings: {PRIOR_JUDGE_OUTPUT}
@@ -401,6 +525,23 @@ Non-fatal — skip silently if `RUN_DIR` is unset or any write fails.
 - `$RUN_DIR/meta.json` — update with final stats (`status: "complete"`, counts, `by_severity`)
 - `$RUN_DIR/report.md` — markdown table of confirmed findings
 
+**Map mode telemetry** — add these fields to `meta.json` and `run.json` (only when `MAP_MODE != "none"`; for `MAP_MODE == "none"` omit or set to null):
+```json
+{
+  "map_mode": "<MAP_MODE>",
+  "map_tokens": <MAP_TOKENS>,
+  "fullcode_tokens": <FULLCODE_TOKENS>,
+  "token_ratio": <TOKEN_RATIO>
+}
+```
+
+For `MAP_MODE == "hybrid"`, also include:
+```json
+{
+  "hybrid_injections_total": <total REQUEST_SECTION injections across all rounds>
+}
+```
+
 Print last: `📁 Run saved: ~/.autoimprove/runs/<RUN_ID>/`
 
 ## Final Step - Cleanup
@@ -414,6 +555,50 @@ TodoWrite([
   {id: "judge",      content: "✅ AR complete", status: "completed"}
 ])
 ```
+
+---
+
+# Map Mode
+
+> **Experimental flag — for A/B/C benchmarking only.** Do not use in production reviews where finding quality is critical until benchmarks validate a mode.
+
+The `--map-mode` flag controls how much source code context is sent to E/A/J agents. Three variants:
+
+## Variant A — `none` (default)
+
+Full `TARGET_CODE` passed to every agent every round. Current behavior, unchanged.
+
+Use when: quality is the primary concern and token cost is secondary.
+
+## Variant B — `map`
+
+Agents receive only a structured map: function signatures, TODO/FIXME markers, and recent git history. No raw implementation code.
+
+Use when: exploring whether high-level structural issues (missing error handling, API surface problems, design smells) can be caught without full source.
+
+Expected token savings: ~80% vs full code.
+
+Quality tradeoff: agents cannot see implementation details. CRITICAL/HIGH findings that require reading logic (off-by-one, null dereference, etc.) will be missed. Best for architecture/API reviews.
+
+## Variant C — `hybrid`
+
+Agents receive the structured map first. After each Enthusiast pass, any `REQUEST_SECTION: <file>:<start>-<end>` lines in the output trigger injection of the actual source snippet into the next agent's prompt.
+
+Use when: you want most of the token savings of map mode but need agents to be able to drill into suspicious areas on demand.
+
+Expected token savings: ~40-60% depending on how many sections are injected. Each injection adds the raw source for that range.
+
+Quality tradeoff: agents may miss issues they didn't know to ask for. Findings in regions that weren't flagged in the map are invisible.
+
+## Telemetry
+
+Every run with `--map-mode map` or `--map-mode hybrid` records in `meta.json`:
+- `map_mode`: which variant was used
+- `map_tokens`: estimated token count of the map (chars / 3.5)
+- `fullcode_tokens`: estimated token count of full code (chars / 3.5)
+- `token_ratio`: map_tokens / fullcode_tokens (lower = more savings)
+
+Use `token_ratio` and confirmed finding counts across A/B/C runs on the same target to measure the quality/cost tradeoff.
 
 ---
 
