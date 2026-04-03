@@ -12,6 +12,8 @@ gates:
     command: bash test/evaluate/test-evaluate.sh
   - name: ar_effectiveness_smoke
     command: bash tests/test-ar-effectiveness.sh
+  - name: no_padding
+    command: bash benchmark/gate-no-padding.sh
 
 # Benchmark types:
 #   type: deterministic  — fast, no LLM sessions, safe to run per-experiment (default)
@@ -105,12 +107,6 @@ benchmarks:
         significance: 0.01
         description: "Proportion of skills with explicit 'do not / never / forbidden' documentation"
 
-      - name: padding_alarm
-        extract: "json:.padding_alarm"
-        direction: lower_is_better
-        tolerance: 0.0
-        significance: 0.01
-        description: "Skills that grew >50% in last commit with no new code blocks — detects inflation attacks"
 
   - name: reliability
     command: bash benchmark/self-metrics.sh
