@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Xavier School Skill Sentinel
+# Detects skill/agent/hook/plugin file writes and suggests review.
+# Dedup: fires once per file per session via session-scoped seen file.
+
+set -uo pipefail
+
+# Extract file_path from tool input JSON
+FILE_PATH=$(echo "$1" | grep -o '"file_path":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+# Exit silently if no file path extracted
+[ -z "$FILE_PATH" ] && exit 0
+
+# Only care about plugin artifacts
+case "$FILE_PATH" in
+  */skills/*/SKILL.md|*/skills/*/*.md) TYPE="skill" ;;
+  */agents/*.md)                        TYPE="agent" ;;
+  */hooks/hooks.json|*/hooks/*.sh|*/hooks/skill-sentinel) TYPE="hook" ;;
+  */.claude-plugin/plugin.json)         TYPE="plugin-meta" ;;
+  *)                                    exit 0 ;;
+esac
+
+# Session-scoped dedup
+SEEN_FILE="${TMPDIR:-/tmp}/autoimprove-sentinel-${USER:-unknown}-$$.seen"
+touch "$SEEN_FILE"
+if grep -qF "$FILE_PATH" "$SEEN_FILE" 2>/dev/null; then
+  exit 0
+fi
+echo "$FILE_PATH" >> "$SEEN_FILE"
+
+# Suggest review
+cat <<EOF
+{"hookSpecificOutput":{"additionalContext":"Skill quality sentinel detected a ${TYPE} change at ${FILE_PATH}. Run autoimprove:polish for guided review, or autoimprove:diagnose for a quick quality score."}}
+EOF

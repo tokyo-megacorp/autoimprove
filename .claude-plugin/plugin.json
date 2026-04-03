@@ -8,5 +8,18 @@
   },
   "repository": "https://github.com/ipedro/autoimprove",
   "license": "MIT",
-  "keywords": ["autoimprove", "autonomous", "improvement", "benchmarks", "experiments"]
+  "keywords": ["autoimprove", "autonomous", "improvement", "benchmarks", "experiments"],
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hooks/skill-sentinel \"$TOOL_INPUT\""
+          }
+        ]
+      }
+    ]
+  }
 }
