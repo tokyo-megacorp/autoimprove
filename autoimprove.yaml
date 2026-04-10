@@ -82,33 +82,28 @@ benchmarks:
       # agent_sections DISABLED — attack: add empty "## Notes", "## See Also" sections →
       # count rises, content unchanged. Decision documented in issue #100 (2026-04-03).
 
-      - name: example_density
-        extract: "json:.example_density"
-        direction: higher_is_better
-        tolerance: 0.0
-        significance: 0.01
-        description: "Average code/example blocks per skill file — concrete > abstract"
-
-      # imperative_ratio REMOVED 2026-04-10 — empirically anti-quality vs superpowers.
-      # Naive regex: autoimprove 0.0316 vs superpowers 0.0111 (we scored 2.85x higher than gold standard).
-      # Smart regex (bullet-aware fix): autoimprove 0.0467 vs superpowers 0.0475 (statistically noise).
-      # Smoking gun: using-superpowers.md scores 0.0000 under current benchmark regex.
-      # Line-counting cannot measure directive density in narrative-rich skills.
-      # See patterns/imperative_ratio_empirical_anti_quality.md for the full investigation.
+      # BULK REMOVAL 2026-04-10 — structural line-counting metrics are fundamentally
+      # incompatible with skill_quality. Validated against superpowers gold standard:
+      #
+      #   Metric                   Autoimprove    Superpowers    Verdict
+      #   imperative_ratio             0.0316         0.0111     anti-quality (2.85x higher)
+      #   example_density             17.7600         6.7143     anti-quality (2.65x higher)
+      #   failure_mode_coverage        0.9600         0.8571     mild anti + saturated at 0.96
+      #
+      # karpathy/autoresearch (the inspiration) uses ONE behavioral metric (val_bpb in
+      # prepare.py:344). Anti-gaming is architectural (prepare.py immutable), not via
+      # line-counting proxies. Our structural metric strategy is backwards.
+      #
+      # See docs/research/research-20260410-behavioral-benchmark-design.md for the
+      # val_bpb analog replacement design. trigger_precision retained as the only
+      # structural metric pointing the right way (autoimprove 0.88 < superpowers 1.50).
 
       - name: trigger_precision
         extract: "json:.trigger_precision"
         direction: higher_is_better
         tolerance: 0.0
         significance: 0.01
-        description: "Average distinct trigger phrases per skill — specificity of invocation conditions"
-
-      - name: failure_mode_coverage
-        extract: "json:.failure_mode_coverage"
-        direction: higher_is_better
-        tolerance: 0.0
-        significance: 0.01
-        description: "Proportion of skills with explicit 'do not / never / forbidden' documentation"
+        description: "Average distinct trigger phrases per skill — specificity of invocation conditions (retained: only structural metric pointing the right way vs superpowers)"
 
 
   - name: reliability
