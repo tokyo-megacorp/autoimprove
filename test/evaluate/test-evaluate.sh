@@ -4115,5 +4115,206 @@ assert_json_field "llm scoring: no regressions" "$result" '.regressed | length' 
 rm -f "$llm_score_config" "$llm_score_baseline"
 
 echo ""
+echo "=== cleanup-worktrees.sh Tests ==="
+
+CLEANUP="$SCRIPT_DIR/../../scripts/cleanup-worktrees.sh"
+
+# Helper: create a minimal git repo in a temp directory for cleanup tests.
+# Prints the repo path. Caller must rm -rf it on exit.
+_make_cleanup_repo() {
+  local d
+  d=$(mktemp -d)
+  git init "$d" >/dev/null 2>&1
+  git -C "$d" config user.email "test@test.com" 2>/dev/null
+  git -C "$d" config user.name "Test" 2>/dev/null
+  git -C "$d" commit --allow-empty -m "init" >/dev/null 2>&1
+  echo "$d"
+}
+
+# Test: --help exits 0 and prints usage text containing key phrases
+echo "--- Test: cleanup-worktrees --help exits 0 and prints usage ---"
+set +e
+help_out=$(bash "$CLEANUP" --help 2>&1)
+help_exit=$?
+set -e
+if [ "$help_exit" -eq 0 ]; then
+  echo "  PASS: --help exits 0"
+  ((PASS++)) || true
+else
+  echo "  FAIL: --help should exit 0 (got $help_exit)"
+  ((FAIL++)) || true
+fi
+if echo "$help_out" | grep -q "dry-run"; then
+  echo "  PASS: --help output mentions --dry-run"
+  ((PASS++)) || true
+else
+  echo "  FAIL: --help output should mention --dry-run"
+  ((FAIL++)) || true
+fi
+
+# Test: unknown flag exits 2 with error message on stderr
+echo "--- Test: cleanup-worktrees unknown flag exits 2 ---"
+set +e
+unknown_err=$(bash "$CLEANUP" --not-a-real-flag 2>&1 >/dev/null)
+unknown_exit=$?
+set -e
+if [ "$unknown_exit" -eq 2 ]; then
+  echo "  PASS: unknown flag exits 2"
+  ((PASS++)) || true
+else
+  echo "  FAIL: unknown flag should exit 2 (got $unknown_exit)"
+  ((FAIL++)) || true
+fi
+if echo "$unknown_err" | grep -q "unknown argument"; then
+  echo "  PASS: unknown flag error message mentions 'unknown argument'"
+  ((PASS++)) || true
+else
+  echo "  FAIL: unknown flag error message should mention 'unknown argument' (got: $unknown_err)"
+  ((FAIL++)) || true
+fi
+
+# Test: clean repo (no orphan branches) → summary line shows 0 worktrees, 0 branches, exits 0
+echo "--- Test: cleanup-worktrees clean repo → 0 removed, exits 0 ---"
+clean_repo=$(_make_cleanup_repo)
+trap "rm -rf '$clean_repo'" EXIT
+set +e
+clean_out=$(cd "$clean_repo" && bash "$CLEANUP" 2>/dev/null)
+clean_exit=$?
+set -e
+if [ "$clean_exit" -eq 0 ]; then
+  echo "  PASS: clean repo exits 0 (idempotent)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: clean repo should exit 0 (got $clean_exit)"
+  ((FAIL++)) || true
+fi
+if echo "$clean_out" | grep -q "\[cleanup\] 0 worktrees, 0 branches removed"; then
+  echo "  PASS: clean repo summary shows 0 worktrees, 0 branches"
+  ((PASS++)) || true
+else
+  echo "  FAIL: clean repo summary should show '0 worktrees, 0 branches removed' (got: $clean_out)"
+  ((FAIL++)) || true
+fi
+rm -rf "$clean_repo"
+trap - EXIT
+
+# Test: dry-run with autoimprove/* orphan branch → would-delete line, no real deletion
+echo "--- Test: cleanup-worktrees dry-run autoimprove branch → would-delete, not deleted ---"
+dr_repo=$(_make_cleanup_repo)
+trap "rm -rf '$dr_repo'" EXIT
+git -C "$dr_repo" checkout -b "autoimprove/exp-099-test" >/dev/null 2>&1
+git -C "$dr_repo" checkout main >/dev/null 2>&1
+set +e
+dr_out=$(cd "$dr_repo" && bash "$CLEANUP" --dry-run 2>/dev/null)
+set -e
+if echo "$dr_out" | grep -q "would-delete: branch autoimprove/exp-099-test"; then
+  echo "  PASS: dry-run shows would-delete for autoimprove/* branch"
+  ((PASS++)) || true
+else
+  echo "  FAIL: dry-run should show would-delete for autoimprove/* branch (got: $dr_out)"
+  ((FAIL++)) || true
+fi
+# Branch must still exist after dry-run
+if git -C "$dr_repo" rev-parse --verify "autoimprove/exp-099-test" >/dev/null 2>&1; then
+  echo "  PASS: dry-run did not delete the branch (branch still exists)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: dry-run should not delete the branch (branch was deleted)"
+  ((FAIL++)) || true
+fi
+# Summary line must include (dry-run)
+if echo "$dr_out" | grep -q "(dry-run)"; then
+  echo "  PASS: dry-run summary line includes '(dry-run)' suffix"
+  ((PASS++)) || true
+else
+  echo "  FAIL: dry-run summary should include '(dry-run)' suffix (got: $dr_out)"
+  ((FAIL++)) || true
+fi
+rm -rf "$dr_repo"
+trap - EXIT
+
+# Test: real mode with autoimprove/* orphan branch → deleted line, branch actually removed
+echo "--- Test: cleanup-worktrees real mode autoimprove branch → deleted, branch gone ---"
+real_repo=$(_make_cleanup_repo)
+trap "rm -rf '$real_repo'" EXIT
+git -C "$real_repo" checkout -b "autoimprove/exp-100-test" >/dev/null 2>&1
+git -C "$real_repo" checkout main >/dev/null 2>&1
+set +e
+real_out=$(cd "$real_repo" && bash "$CLEANUP" 2>/dev/null)
+set -e
+if echo "$real_out" | grep -q "deleted: branch autoimprove/exp-100-test"; then
+  echo "  PASS: real mode shows deleted line for autoimprove/* branch"
+  ((PASS++)) || true
+else
+  echo "  FAIL: real mode should show deleted line (got: $real_out)"
+  ((FAIL++)) || true
+fi
+# Branch must be gone after real mode
+if ! git -C "$real_repo" rev-parse --verify "autoimprove/exp-100-test" >/dev/null 2>&1; then
+  echo "  PASS: real mode deleted the branch (branch no longer exists)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: real mode should have deleted the branch"
+  ((FAIL++)) || true
+fi
+rm -rf "$real_repo"
+trap - EXIT
+
+# Test: worktree-agent-* namespace also cleaned up (not just autoimprove/*)
+echo "--- Test: cleanup-worktrees picks up worktree-agent-* branches ---"
+wa_repo=$(_make_cleanup_repo)
+trap "rm -rf '$wa_repo'" EXIT
+git -C "$wa_repo" checkout -b "worktree-agent-exp-042" >/dev/null 2>&1
+git -C "$wa_repo" checkout main >/dev/null 2>&1
+set +e
+wa_out=$(cd "$wa_repo" && bash "$CLEANUP" --dry-run 2>/dev/null)
+set -e
+if echo "$wa_out" | grep -q "would-delete: branch worktree-agent-exp-042"; then
+  echo "  PASS: worktree-agent-* branch appears in dry-run would-delete list"
+  ((PASS++)) || true
+else
+  echo "  FAIL: worktree-agent-* branch should appear in dry-run list (got: $wa_out)"
+  ((FAIL++)) || true
+fi
+if echo "$wa_out" | grep -q "\[cleanup\] 0 worktrees, 1 branches removed"; then
+  echo "  PASS: summary shows 1 branch removed for worktree-agent-* match"
+  ((PASS++)) || true
+else
+  echo "  FAIL: summary should show 1 branch removed (got: $wa_out)"
+  ((FAIL++)) || true
+fi
+rm -rf "$wa_repo"
+trap - EXIT
+
+# Test: tagged exp-* branch is protected (Guard B) — not deleted even in real mode
+echo "--- Test: cleanup-worktrees skips exp-* tagged autoimprove branch (Guard B) ---"
+tag_repo=$(_make_cleanup_repo)
+trap "rm -rf '$tag_repo'" EXIT
+git -C "$tag_repo" checkout -b "autoimprove/exp-101-kept" >/dev/null 2>&1
+git -C "$tag_repo" tag exp-101 >/dev/null 2>&1
+git -C "$tag_repo" checkout main >/dev/null 2>&1
+set +e
+tag_out=$(cd "$tag_repo" && bash "$CLEANUP" 2>/dev/null)
+set -e
+# Tagged branch must still exist
+if git -C "$tag_repo" rev-parse --verify "autoimprove/exp-101-kept" >/dev/null 2>&1; then
+  echo "  PASS: tagged exp-* branch was protected (not deleted)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: tagged exp-* branch should be protected (was deleted)"
+  ((FAIL++)) || true
+fi
+# Summary should show 0 branches removed
+if echo "$tag_out" | grep -q "\[cleanup\] 0 worktrees, 0 branches removed"; then
+  echo "  PASS: summary shows 0 branches removed (tagged branch skipped)"
+  ((PASS++)) || true
+else
+  echo "  FAIL: tagged branch should not be counted as removed (got: $tag_out)"
+  ((FAIL++)) || true
+fi
+rm -rf "$tag_repo"
+trap - EXIT
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
