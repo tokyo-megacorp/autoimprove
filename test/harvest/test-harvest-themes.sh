@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# test/harvest/test-harvest-themes.sh — Tests for scripts/harvest-themes.sh
+# test/harvest/test-harvest-themes.sh — Tests for skills/_shared/harvest-themes.sh
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-HARVEST_THEMES="$SCRIPT_DIR/scripts/harvest-themes.sh"
+HARVEST_THEMES="$SCRIPT_DIR/skills/_shared/harvest-themes.sh"
 PASS=0; FAIL=0; TOTAL=0
 
 _assert() {

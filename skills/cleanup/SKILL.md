@@ -1,7 +1,7 @@
 ---
 name: cleanup
 description: |
-  Manually sweep stale autoimprove worktrees and branches via `scripts/cleanup-worktrees.sh`. Safe to run at any time — protects live worktrees, tagged keepers, and in-flight experiments. Triggers: '/autoimprove cleanup', 'clean up stale worktrees', 'sweep orphan branches', 'autoimprove hygiene'.
+  Manually sweep stale autoimprove worktrees and branches via `skills/_shared/cleanup-worktrees.sh`. Safe to run at any time — protects live worktrees, tagged keepers, and in-flight experiments. Triggers: '/autoimprove cleanup', 'clean up stale worktrees', 'sweep orphan branches', 'autoimprove hygiene'.
 
   <example>
   user: "/autoimprove cleanup --dry-run"
@@ -35,11 +35,11 @@ Default behavior: destructive sweep, quiet output.
 Verify the helper exists:
 
 ```bash
-test -f scripts/cleanup-worktrees.sh || {
-  echo "FATAL: scripts/cleanup-worktrees.sh not found — are you in the autoimprove repo root?"
+test -f "${CLAUDE_SKILL_DIR}/../_shared/cleanup-worktrees.sh" || {
+  echo "FATAL: cleanup-worktrees.sh not found — plugin may be misconfigured"
   exit 1
 }
-chmod +x scripts/cleanup-worktrees.sh
+chmod +x "${CLAUDE_SKILL_DIR}/../_shared/cleanup-worktrees.sh"
 ```
 
 ---
@@ -49,7 +49,7 @@ chmod +x scripts/cleanup-worktrees.sh
 Pass arguments through:
 
 ```bash
-bash scripts/cleanup-worktrees.sh $ARGUMENTS
+bash "${CLAUDE_SKILL_DIR}/../_shared/cleanup-worktrees.sh" $ARGUMENTS
 ```
 
 Capture stdout. The last line is the summary (`[cleanup] N worktrees, M branches removed`).

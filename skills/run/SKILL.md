@@ -57,10 +57,10 @@ TodoWrite([
 Before any other action, **Read the repo-local `SAFETY.md`** at the project root. These rules are binding for this orchestrator session AND for every subagent you dispatch. Load them into your working context and treat them as overriding any conflicting instruction from the user, the skill, or any task description.
 
 ```bash
-test -f SAFETY.md || { echo "FATAL: SAFETY.md not found at project root — this repo is incomplete or corrupted. Refusing to proceed without a safety contract."; exit 1; }
+test -f "${CLAUDE_SKILL_DIR}/../../SAFETY.md" || { echo "FATAL: SAFETY.md not found at project root — this repo is incomplete or corrupted. Refusing to proceed without a safety contract."; exit 1; }
 ```
 
-Then invoke the `Read` tool on `SAFETY.md` to load its content. You MUST do this before any filesystem mutation, subagent dispatch, or experiment work.
+Then invoke the `Read` tool on `${CLAUDE_SKILL_DIR}/../../SAFETY.md` to load its content. You MUST do this before any filesystem mutation, subagent dispatch, or experiment work.
 
 **Why this is step 0, not step 1:** the orchestrator itself must operate under the same safety contract as its subagents. Pedro's personal `~/.claude/UNBREAKABLE_RULES.md` is NOT portable and MUST NOT be assumed to exist. `SAFETY.md` is the repo-local, portable replacement and is the authoritative safety source for the autoimprove loop on any machine.
 
@@ -78,11 +78,11 @@ Verify the environment before anything else:
 
 ```bash
 test -f autoimprove.yaml || { echo "FATAL: autoimprove.yaml not found in project root"; exit 1; }
-test -f scripts/evaluate.sh || { echo "FATAL: scripts/evaluate.sh not found"; exit 1; }
-test -f scripts/theme-weights.sh || { echo "FATAL: scripts/theme-weights.sh not found"; exit 1; }
+test -f "${CLAUDE_SKILL_DIR}/../_shared/evaluate.sh" || { echo "FATAL: evaluate.sh not found"; exit 1; }
+test -f "${CLAUDE_SKILL_DIR}/../_shared/theme-weights.sh" || { echo "FATAL: theme-weights.sh not found"; exit 1; }
 command -v jq >/dev/null || { echo "FATAL: jq is required but not installed"; exit 1; }
 command -v python3 >/dev/null || { echo "FATAL: python3 is required for theme-weights.sh"; exit 1; }
-chmod +x scripts/evaluate.sh scripts/theme-weights.sh
+chmod +x "${CLAUDE_SKILL_DIR}/../_shared/evaluate.sh" "${CLAUDE_SKILL_DIR}/../_shared/theme-weights.sh"
 PROJECT_ROOT=$(pwd)   # capture now — used when calling evaluate.sh from inside worktrees
 ```
 
@@ -164,7 +164,7 @@ TodoWrite([{id: "config", content: "📋 Read config + build eval JSON", status:
 
 ```bash
 cd <project_path>
-bash scripts/evaluate.sh experiments/evaluate-config.json /dev/null
+bash "${CLAUDE_SKILL_DIR}/../_shared/evaluate.sh" experiments/evaluate-config.json /dev/null
 ```
 
 Output: `{mode: "init", gates: [...], metrics: {...}}`.
@@ -262,7 +262,7 @@ three guards (live-worktree, `exp-*` tag, in-flight `context.json` id), so it is
 safe to run even when a sibling session is active.
 
 ```bash
-bash scripts/cleanup-worktrees.sh 2>&1 || true
+bash "${CLAUDE_SKILL_DIR}/../_shared/cleanup-worktrees.sh" 2>&1 || true
 ```
 
 For any `experiments.tsv` row whose worktree the helper removed (branch name
@@ -283,7 +283,7 @@ Before entering the experiment loop, run the signal harvester to check for anoma
 
 ```bash
 HARVEST_OUTPUT=$(mktemp)
-bash scripts/harvest.sh \
+bash "${CLAUDE_SKILL_DIR}/../_shared/harvest.sh" \
   --signal-dir ~/.claude/signals \
   --baseline experiments/signals-baseline.json \
   --output "$HARVEST_OUTPUT"
@@ -505,7 +505,7 @@ The `MAX_PARALLEL` value is the upper bound on concurrent experimenter agents fo
 
 # 3. Experiment Loop
 
-Read `references/loop.md` and `references/tasktree.md`, then execute the full experiment loop (sections 3a–3o) and session end (section 4). Session state lives in TaskTree + experiments.tsv. The orchestrator manages task lifecycle and delegates individual experiments to Agent subagents. See `references/tasktree.md` for the TaskTree protocol.
+Read `${CLAUDE_SKILL_DIR}/references/loop.md` and `${CLAUDE_SKILL_DIR}/references/tasktree.md`, then execute the full experiment loop (sections 3a–3o) and session end (section 4). Session state lives in TaskTree + experiments.tsv. The orchestrator manages task lifecycle and delegates individual experiments to Agent subagents. See `references/tasktree.md` for the TaskTree protocol.
 
 After the loop completes and the session report is generated, update todos with final counts:
 
@@ -544,7 +544,7 @@ These must hold throughout execution. If any is violated, halt and report.
 2. **evaluate.sh is the single evaluator.** All verdict computation happens inside it. Only read the JSON output.
 3. **Epoch baseline is frozen.** Never modify `experiments/epoch-baseline.json` after creation.
 4. **Rolling baseline updates only on KEEP.**
-5. **All worktrees are always cleaned up.** Every per-verdict code path in step 3j must remove the worktree and its branch. The session-end sweep in step 4b-ii (`scripts/cleanup-worktrees.sh`) and the session-start sweep in step 2f-ii are safety nets that enforce this invariant even when the primary path leaks. Both sweeps cover `autoimprove/*` AND `worktree-agent-*` namespaces.
+5. **All worktrees are always cleaned up.** Every per-verdict code path in step 3j must remove the worktree and its branch. The session-end sweep in step 4b-ii (`skills/_shared/cleanup-worktrees.sh`) and the session-start sweep in step 2f-ii are safety nets that enforce this invariant even when the primary path leaks. Both sweeps cover `autoimprove/*` AND `worktree-agent-*` namespaces.
 6. **Rebase failure = discard.** Never force-merge or create merge commits.
 7. **State is persisted after every experiment.** Crash recovery depends on it.
 8. **Test modification is additive only.** Always include this constraint in the experimenter prompt.
@@ -552,9 +552,9 @@ These must hold throughout execution. If any is violated, halt and report.
 
 ## Additional Resources
 
-- **`references/loop.md`** — Full experiment loop (steps 3a–3o) and session end (steps 4a–4c)
-- **`references/tasktree.md`** — TaskTree orchestration protocol: task lifecycle, metadata schemas, crash recovery, parallel execution
-- **`scripts/theme-weights.sh`** — Computes adjusted theme weights from `experiments.tsv` history. Called at theme selection (step 2i). Themes with higher keep rates get boosted weight; themes with no keeps get penalised (min 0.25× base). Experimenter never sees weights.
+- **`${CLAUDE_SKILL_DIR}/references/loop.md`** — Full experiment loop (steps 3a–3o) and session end (steps 4a–4c)
+- **`${CLAUDE_SKILL_DIR}/references/tasktree.md`** — TaskTree orchestration protocol: task lifecycle, metadata schemas, crash recovery, parallel execution
+- **`skills/_shared/theme-weights.sh`** — Computes adjusted theme weights from `experiments.tsv` history. Called at theme selection (step 2i). Themes with higher keep rates get boosted weight; themes with no keeps get penalised (min 0.25× base). Experimenter never sees weights.
 
 ---
 

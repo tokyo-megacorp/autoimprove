@@ -380,7 +380,7 @@ Use /autoimprove test <suite> to list all test names in that suite.
 - **Before `/autoimprove run`** — the `run` skill's hard gates call these same scripts. A passing `test` run confirms the baseline is clean before the experiment loop starts.
 - **After a KEEP verdict** — re-run `test` to catch regressions the experimenter introduced that gates did not catch (gate commands are configurable and may be narrower than these suites).
 - **CI hook** — add `bash test/challenge/test-score-challenge.sh && bash test/evaluate/test-evaluate.sh` as a pre-push hook to keep the scorer and evaluator in sync. Use `--quiet` for CI-friendly output.
-- **After modifying `scripts/evaluate.sh`** — re-run `test evaluate` immediately. The evaluate test suite validates the evaluator's own logic; changes to `evaluate.sh` can silently break the scoring pipeline.
+- **After modifying `skills/_shared/evaluate.sh`** — re-run `test evaluate` immediately. The evaluate test suite validates the evaluator's own logic; changes to `evaluate.sh` can silently break the scoring pipeline.
 - **After updating `autoimprove.yaml` gates** — a gate change may cause experiments to fail that previously passed. Run `test evaluate` to confirm the gate command works as expected before the next run.
 - **After adding new challenges** — run `test challenge` after adding entries to `challenges/manifest.json` to verify the new challenge files are reachable and parseable.
 

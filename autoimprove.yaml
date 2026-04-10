@@ -184,7 +184,7 @@ constraints:
   forbidden_paths:
     - autoimprove.yaml          # never auto-modify config
     - SAFETY.md                 # repo-local experimenter safety rules — never modify
-    - scripts/evaluate.sh       # gate script is sacred
+    - skills/_shared/**         # shared plugin scripts are sacred
     - benchmark/**              # benchmark scripts are sacred
     - .claude-plugin/**         # plugin cache — not source
     - .claude/**                # local claude config

@@ -84,7 +84,7 @@ Include theme, commit message, and verdict only. Do NOT include metric values, s
 Before spawning the experimenter, run the harvest scan to identify low-hanging-fruit files for the selected theme:
 
 ```bash
-FOCUS=$(bash scripts/harvest-themes.sh "$THEME" "$PROJECT_ROOT")
+FOCUS=$(bash "${CLAUDE_SKILL_DIR}/../_shared/harvest-themes.sh" "$THEME" "$PROJECT_ROOT")
 ```
 
 `FOCUS` is a newline-separated list of JSON objects: `{"path":"...","reason":"..."}`.
@@ -200,7 +200,7 @@ When the experimenter returns:
    # Passing a worktree path as the 2nd arg is a common mistake: it's a directory, not a file,
    # which triggers INIT_MODE and skips baseline comparison entirely.
    cd <worktree_path>
-   bash scripts/evaluate.sh "$PROJECT_ROOT/experiments/evaluate-config.json" "$PROJECT_ROOT/experiments/rolling-baseline.json"
+   bash "${CLAUDE_SKILL_DIR}/../_shared/evaluate.sh" "$PROJECT_ROOT/experiments/evaluate-config.json" "$PROJECT_ROOT/experiments/rolling-baseline.json"
    ```
 
 3. Parse JSON output:
@@ -248,7 +248,7 @@ Increment the appropriate counter. For `neutral`: increment `theme_stagnation[TH
 4. Update rolling baseline — run evaluate.sh init mode on the new main and write the output metrics to `experiments/rolling-baseline.json`:
    ```bash
    cd "$PROJECT_ROOT"
-   bash scripts/evaluate.sh experiments/evaluate-config.json experiments/rolling-baseline.json
+   bash "${CLAUDE_SKILL_DIR}/../_shared/evaluate.sh" experiments/evaluate-config.json experiments/rolling-baseline.json
    ```
 
 5. Update trust ratchet: increment `consecutive_keeps`. Promote tier if threshold reached (Tier 0→1 at 5 keeps, Tier 1→2 at 15 keeps).
@@ -415,7 +415,7 @@ on paper. The script is idempotent and protects in-flight work via three guards
 (live-worktree, `exp-*` tag, in-flight experiment id from `context.json`).
 
 ```bash
-CLEANUP_OUTPUT=$(bash scripts/cleanup-worktrees.sh 2>&1 || true)
+CLEANUP_OUTPUT=$(bash "${CLAUDE_SKILL_DIR}/../_shared/cleanup-worktrees.sh" 2>&1 || true)
 echo "$CLEANUP_OUTPUT"
 ```
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/test-theme-weights.sh — Unit tests for scripts/theme-weights.sh
+# tests/test-theme-weights.sh — Unit tests for skills/_shared/theme-weights.sh
 #
 # Tests:
 #  1. Missing YAML → exit 1
@@ -11,7 +11,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-THEME_WEIGHTS="$SCRIPT_DIR/scripts/theme-weights.sh"
+THEME_WEIGHTS="$SCRIPT_DIR/skills/_shared/theme-weights.sh"
 
 PASS=0; FAIL=0; TOTAL=0
 

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-EVALUATE="$SCRIPT_DIR/../../scripts/evaluate.sh"
+EVALUATE="$SCRIPT_DIR/../../skills/_shared/evaluate.sh"
 FIXTURES="$SCRIPT_DIR/fixtures"
 PASS=0
 FAIL=0
@@ -4117,7 +4117,7 @@ rm -f "$llm_score_config" "$llm_score_baseline"
 echo ""
 echo "=== cleanup-worktrees.sh Tests ==="
 
-CLEANUP="$SCRIPT_DIR/../../scripts/cleanup-worktrees.sh"
+CLEANUP="$SCRIPT_DIR/../../skills/_shared/cleanup-worktrees.sh"
 
 # Helper: create a minimal git repo in a temp directory for cleanup tests.
 # Prints the repo path. Caller must rm -rf it on exit.
@@ -4318,7 +4318,7 @@ trap - EXIT
 echo ""
 echo "=== ar-write-round.sh Tests ==="
 
-AR_WRITE="$SCRIPT_DIR/../../scripts/ar-write-round.sh"
+AR_WRITE="$SCRIPT_DIR/../../skills/_shared/ar-write-round.sh"
 
 # Helper: create a temp dir with minimal JSON agent output files for ar-write-round tests.
 # Prints the dir path. Caller must rm -rf it on exit.

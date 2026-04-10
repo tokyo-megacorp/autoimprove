@@ -234,7 +234,7 @@ Mark: `TodoWrite([{id: "benchmarks", status: "completed"}, {id: "verify", status
 Run `evaluate.sh` in init mode to verify gates and benchmarks work:
 
 ```bash
-bash scripts/evaluate.sh experiments/evaluate-config.json /dev/null
+bash "${CLAUDE_SKILL_DIR}/../_shared/evaluate.sh" experiments/evaluate-config.json /dev/null
 ```
 
 Parse the JSON output and report to the user:
@@ -265,7 +265,7 @@ TodoWrite([
 
 - **Updating a single section of an existing config** — edit `autoimprove.yaml` directly (it is plain YAML with inline comments).
 - **Resetting experiment state** — delete `experiments/state.json` and `experiments/epoch-baseline.json` manually; init does not touch these.
-- **Adding a new benchmark to a running project** — append to the `benchmarks` array in `autoimprove.yaml` and re-run `bash scripts/evaluate.sh experiments/evaluate-config.json /dev/null` to verify, then re-generate `evaluate-config.json` with `/autoimprove run` (it regenerates this file at session start).
+- **Adding a new benchmark to a running project** — append to the `benchmarks` array in `autoimprove.yaml` and re-run `bash "${CLAUDE_SKILL_DIR}/../_shared/evaluate.sh" experiments/evaluate-config.json /dev/null` to verify, then re-generate `evaluate-config.json` with `/autoimprove run` (it regenerates this file at session start).
 
 ---
 

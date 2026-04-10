@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-HARVEST="$SCRIPT_DIR/scripts/harvest.sh"
+HARVEST="$SCRIPT_DIR/skills/_shared/harvest.sh"
 FIXTURES="$(cd "$(dirname "$0")/fixtures" && pwd)"
 PASS=0; FAIL=0; TOTAL=0
 

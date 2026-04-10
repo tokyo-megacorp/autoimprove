@@ -245,7 +245,7 @@ Stop — do not update state on failure.
 After a successful revert, re-run the benchmark to refresh the rolling baseline:
 
 ```bash
-bash scripts/evaluate.sh experiments/evaluate-config.json experiments/rolling-baseline.json
+bash "${CLAUDE_SKILL_DIR}/../_shared/evaluate.sh" experiments/evaluate-config.json experiments/rolling-baseline.json
 ```
 
 If this fails (non-zero exit), print a warning but do NOT treat it as a fatal error:

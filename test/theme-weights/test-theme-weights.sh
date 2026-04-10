@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test/theme-weights/test-theme-weights.sh — Tests for scripts/theme-weights.sh
+# test/theme-weights/test-theme-weights.sh — Tests for skills/_shared/theme-weights.sh
 #
 # Covers the weight formula:
 #   adjusted = base × (0.5 + keep_rate)   [cold start: base × 1.0]
@@ -8,7 +8,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-THEME_WEIGHTS="$SCRIPT_DIR/../../scripts/theme-weights.sh"
+THEME_WEIGHTS="$SCRIPT_DIR/../../skills/_shared/theme-weights.sh"
 PASS=0
 FAIL=0
 

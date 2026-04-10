@@ -447,11 +447,11 @@ echo '<JUDGE_OUTPUT_JSON>'      > "$JUDGE_TMP"
 # Write round-N.json and update meta.json incrementally
 AR_ROUND_MODEL="<ROUND_MODEL>" \
 AR_ROUND_ERRORS='<ERRORS_JSON_ARRAY_OR_EMPTY_ARRAY>' \
-bash scripts/ar-write-round.sh "$RUN_DIR" <ROUND> "$ENTHUSIAST_TMP" "$ADVERSARY_TMP" "$JUDGE_TMP"
+bash "${CLAUDE_SKILL_DIR}/../_shared/ar-write-round.sh" "$RUN_DIR" <ROUND> "$ENTHUSIAST_TMP" "$ADVERSARY_TMP" "$JUDGE_TMP"
 
 rm -f "$ENTHUSIAST_TMP" "$ADVERSARY_TMP" "$JUDGE_TMP"
 ```
-(`scripts/ar-write-round.sh` writes `$RUN_DIR/round-{ROUND}.json` and updates `meta.json`.)
+(`skills/_shared/ar-write-round.sh` writes `$RUN_DIR/round-{ROUND}.json` and updates `meta.json`.)
 Also append the round-N.json contents to the `ROUNDS` array in state.
 
 ---
