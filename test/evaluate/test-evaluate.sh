@@ -4507,5 +4507,28 @@ fi
 rm -rf "$ar_dir" "$run_dir"
 
 echo ""
+echo "=== --tests-only flag tests ==="
+
+echo "--- Test: --tests-only runs gates and skips benchmarks ---"
+tests_only_config='{"gates":[{"name":"trivial","command":"true"}],"benchmarks":[{"name":"should-be-skipped","command":"echo SHOULD_NOT_RUN >&2; echo {}","metrics":[{"name":"x","extract":"json:.x","direction":"higher_is_better"}]}],"regression_tolerance":0.02,"significance_threshold":0.01}'
+tests_only_tmp=$(mktemp)
+echo "$tests_only_config" > "$tests_only_tmp"
+tests_only_stderr_file=$(mktemp)
+tests_only_out=$("$EVALUATE" --tests-only "$tests_only_tmp" /dev/null 2>"$tests_only_stderr_file") || true
+tests_only_stderr=$(cat "$tests_only_stderr_file")
+rm -f "$tests_only_stderr_file"
+assert_json_field "tests-only mode marker" "$tests_only_out" '.mode' 'tests_only'
+assert_json_field "tests-only gate ran" "$tests_only_out" '.gates[0].name' 'trivial'
+assert_json_field "tests-only gate passed" "$tests_only_out" '.gates[0].passed' 'true'
+if echo "$tests_only_stderr" | grep -q SHOULD_NOT_RUN; then
+  echo "  FAIL: --tests-only ran benchmarks (saw SHOULD_NOT_RUN in stderr)"
+  ((FAIL++)) || true
+else
+  echo "  PASS: --tests-only skipped benchmarks"
+  ((PASS++)) || true
+fi
+rm -f "$tests_only_tmp"
+
+echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1

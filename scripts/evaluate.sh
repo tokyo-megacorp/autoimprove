@@ -10,10 +10,12 @@ set -uo pipefail
 CONFIG=""
 BASELINE="/dev/null"
 INCLUDE_LLM_BENCHMARKS=false
+TESTS_ONLY=false
 
 for arg in "$@"; do
   case "$arg" in
     --include-llm-benchmarks) INCLUDE_LLM_BENCHMARKS=true ;;
+    --tests-only) TESTS_ONLY=true ;;
     *)
       if [ -z "$CONFIG" ]; then
         CONFIG="$arg"
@@ -294,6 +296,14 @@ if [ "$GATE_PASSED" = "false" ]; then
     --arg reason "gate '$failed_gate' failed" \
     --argjson gates "$GATE_RESULTS" \
     '{verdict: $verdict, reason: $reason, gates: $gates, metrics: {}, improved: [], regressed: [], verdict_logic: "gate_fast_fail"}'
+  exit 0
+fi
+
+# tests-only mode — emit gates result and exit before benchmarks run
+if [ "$TESTS_ONLY" = "true" ]; then
+  jq -n \
+    --argjson gates "$GATE_RESULTS" \
+    '{mode: "tests_only", gates: $gates}'
   exit 0
 fi
 
