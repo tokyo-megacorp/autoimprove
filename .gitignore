@@ -32,3 +32,4 @@ impl-*-result.txt
 
 # Codex OMX runtime artifacts (machine-local session state)
 .omx/
+.magi
