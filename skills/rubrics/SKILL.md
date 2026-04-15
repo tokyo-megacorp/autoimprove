@@ -13,10 +13,10 @@ Given a skill type from `diagnose`, load the applicable rubrics:
 
 | Skill Type | REQUIRED Rubrics |
 |---|---|
-| discipline-enforcing | pressure-resistant, procedural-completeness, anti-rationalization, verification-gates, progress-transparency |
-| reference | procedural-completeness, examples, failure-modes |
-| technique | procedural-completeness, examples, decision-diagrams, progress-transparency |
-| pattern | procedural-completeness, examples, failure-modes |
+| discipline-enforcing | authoring-hygiene, pressure-resistant, procedural-completeness, anti-rationalization, verification-gates, progress-transparency |
+| reference | authoring-hygiene, procedural-completeness, examples, failure-modes |
+| technique | authoring-hygiene, procedural-completeness, examples, decision-diagrams, progress-transparency |
+| pattern | authoring-hygiene, procedural-completeness, examples, failure-modes |
 
 Load rubric files from this directory: `skills/rubrics/<rubric-name>.md`
 

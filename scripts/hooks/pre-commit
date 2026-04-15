@@ -1,46 +1,7 @@
 #!/usr/bin/env bash
-# Pre-commit hook: reject SKILL.md files with description > 1024 chars
-# Claude Code plugin system silently drops skills with descriptions over this limit.
-#
-# Recovery: fix the description, then re-commit.
-#   python3 -c "import yaml; ..." to check char count (see error output below)
+# Pre-commit hook: reject staged skill changes with deterministic authoring defects.
 
 set -euo pipefail
 
-MAX_CHARS=1024
-ERRORS=0
-
-# Only check SKILL.md files that are staged for commit
-for file in $(git diff --cached --name-only --diff-filter=ACM | grep 'SKILL\.md$'); do
-    # Extract description from YAML frontmatter using the staged version
-    DESC_LEN=$(git show ":${file}" | python3 -c "
-import yaml, sys
-content = sys.stdin.read()
-parts = content.split('---', 2)
-if len(parts) >= 3:
-    try:
-        fm = yaml.safe_load(parts[1])
-        desc = fm.get('description', '')
-        print(len(desc))
-    except:
-        print(0)
-else:
-    print(0)
-" 2>/dev/null || echo 0)
-
-    if [ "$DESC_LEN" -gt "$MAX_CHARS" ]; then
-        echo "ERROR: ${file} — description is ${DESC_LEN} chars (max ${MAX_CHARS})"
-        echo "  Fix: trim the description field in YAML frontmatter"
-        echo "  Check: python3 -c \"import yaml; fm=yaml.safe_load(open('${file}').read().split('---',2)[1]); print(len(fm['description']),'chars')\""
-        echo ""
-        ERRORS=$((ERRORS + 1))
-    fi
-done
-
-if [ "$ERRORS" -gt 0 ]; then
-    echo "BLOCKED: ${ERRORS} SKILL.md file(s) exceed the ${MAX_CHARS}-char description limit."
-    echo "Claude Code silently drops skills with descriptions over this limit."
-    echo ""
-    echo "To bypass (not recommended): git commit --no-verify"
-    exit 1
-fi
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+"${REPO_ROOT}/scripts/validate-skill-authoring.sh" --staged

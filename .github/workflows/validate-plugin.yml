@@ -8,12 +8,16 @@ on:
       - 'skills/**'
       - 'commands/**'
       - 'agents/**'
+      - 'scripts/**'
+      - '.github/workflows/validate-plugin.yml'
   pull_request:
     paths:
       - '.claude-plugin/**'
       - 'skills/**'
       - 'commands/**'
       - 'agents/**'
+      - 'scripts/**'
+      - '.github/workflows/validate-plugin.yml'
 
 permissions:
   contents: read
@@ -80,33 +84,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # autoimprove: skills/ at repo root, each skill dir must have SKILL.md
-      - name: Validate skills (skills/<name>/SKILL.md)
+      - name: Validate skill authoring hygiene
         run: |
-          ERRORS=0
-          if [ -d "skills" ]; then
-            for skill_dir in skills/*/; do
-              skill_name=$(basename "$skill_dir")
-              if [ ! -f "$skill_dir/SKILL.md" ]; then
-                echo "ERROR: skills/$skill_name/SKILL.md not found"
-                ERRORS=$((ERRORS + 1))
-              else
-                echo "OK: skills/$skill_name/SKILL.md"
-              fi
-            done
-          else
-            echo "INFO: no skills/ directory"
-          fi
-          if [ "$ERRORS" -gt 0 ]; then
-            echo "FAILED: $ERRORS skill(s) missing SKILL.md"
-            exit 1
-          fi
+          bash scripts/validate-skill-authoring.sh
 
-      # autoimprove: commands/ at .claude-plugin/commands/, each is a .md file
-      - name: Validate commands (.claude-plugin/commands/<name>.md)
+      - name: Validate commands (commands/<name>.md)
         run: |
           ERRORS=0
-          CMD_DIR=".claude-plugin/commands"
+          CMD_DIR="commands"
           if [ -d "$CMD_DIR" ]; then
             for cmd_file in "$CMD_DIR"/*.md; do
               [ -e "$cmd_file" ] || continue
@@ -155,12 +140,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Ensure commands/ and skills/ are NOT nested inside .claude-plugin/
+      - name: Ensure skills/ are NOT nested inside .claude-plugin/
         run: |
           ERRORS=0
 
-          # commands/ should be at .claude-plugin/commands/ only — not at a deeper nesting
-          # The anti-pattern is having skills/ or a second commands/ inside .claude-plugin/
+          # autoimprove keeps skills/ at repo root.
+          # Claude command files are mirrored into .claude-plugin/commands via symlinks,
+          # so only skills are treated as a structural anti-pattern here.
           if [ -d ".claude-plugin/skills" ]; then
             echo "ERROR: skills/ is nested inside .claude-plugin/ — anti-pattern detected"
             echo "  Move skills to repo root skills/"

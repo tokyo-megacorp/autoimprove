@@ -4,6 +4,16 @@ This repo implements a self-improvement feedback loop: polling triggers that wat
 
 ## Primary concerns
 
+### Skill authoring hygiene
+- When a PR touches `skills/*/SKILL.md`, review the skill as a plugin asset, not only as prose.
+- Flag missing or invalid YAML frontmatter.
+- Flag `name` values that are not kebab-case, do not match the skill directory, or contain reserved platform words like `claude` or `anthropic`.
+- Flag missing or empty `description` fields, and descriptions that exceed 1024 characters.
+- Flag descriptions that explain what the skill does but not when it should activate.
+- Flag large `SKILL.md` files that inline too much detail instead of using progressive disclosure via sibling references, examples, or templates.
+- Prefer concrete references to the affected skill path and the exact frontmatter field or section that is problematic.
+- Do not block on the `observability` frontmatter contract yet; the repo documents that direction, but it is not fully adopted across existing skills.
+
 ### Trigger idempotency (highest priority)
 - Polling scripts must not process the same event twice. Look for lock files, processed-ID tracking, or state markers.
 - Flag any loop that reads a file/directory and processes entries without marking them as done.
