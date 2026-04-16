@@ -2,6 +2,45 @@
 
 All notable changes to autoimprove are documented here.
 
+## [0.7.0] — 2026-04-16 — idea-matrix Fix A + null-model validation
+
+Breaking: idea-matrix output schema changed (ranking → rankings, by_score_band → by_score_band_solo, dealbreakers → dealbreakers_solo) to eliminate structural bias where `synergy_potential` tautologically favored combo cells. Surfaced by the null-model validation experiment (D0 synthetic control failed H5, p=2.95e-05).
+
+### Added
+- `feat(idea-matrix)`: Fix A — separated rankings by cell type. Solo cells are the authoritative winner pool; combos/alts become secondary findings flagged with `beats_solo` (natural_extension or alternative_angle). Prevents the 3x3 grid from fabricating winners through combo-bias.
+- `feat(protocol)`: preregistered null-model validation protocol v10.1 (`docs/null-model-validation-protocol.md`) — 5 hypotheses with pre-committed thresholds, 3 real domains plus synthetic control (D0), blind coding with Cohen's kappa ≥ 0.75, 16 rounds of Codex adversarial review.
+- `feat(evaluate)`: `--tests-only` flag for running the gate suite without full benchmarks.
+- `feat(pilot)`: Phase 1 cleanup fixture — TDD-for-fixtures validation plus Claude-invocation testing.
+- `feat(rubric-ladder)`: `replay-pattern-layer.sh` — pre-implementation validation.
+
+### Fixed
+- `fix(idea-matrix)`: Tier 1 hardening — mandatory SCORING CONVENTION table (HIGHER=BETTER across all 4 dimensions), `risk_direction_used` field to catch convention drift, `mechanism_novelty` field, `CRITICAL: Do NOT invoke any tools` preamble, tool contamination guard that inspects `usage.tool_uses` and re-dispatches contaminated cells. Audit trail framing for Step 8 telemetry.
+- `fix(skills)`: move `scripts/` → `skills/_shared/` for multi-tenant portability.
+- `fix(safety)`: create repo-local `SAFETY.md`, wire into loop — portability fix.
+- `fix(run)`: load `SAFETY.md` as step 0 — orchestrator now portable.
+- `fix(metrics)`: delete `example_density` + `failure_mode_coverage`, add behavioral benchmark design.
+- `fix(config)`: remove `imperative_ratio` metric — empirically anti-quality vs superpowers.
+- `fix(evaluate)`: handle float zeros in zero-baseline check.
+
+### Changed
+- `refactor(test)`: thin wrapper over `evaluate.sh --tests-only`.
+
+### Other
+- `chore`: removed the external autotune dependency from autoimprove runs.
+- `chore`: exposed autoimprove to Codex without ambiguous skill entrypoints.
+- `chore`: exposed the calibrate command through the shared commands layout.
+- `chore`: added a shared skill authoring hygiene gate for reviews and CI.
+- `docs(experiment)`: null-model validation abort report (`docs/null-model-validation-abort.md`) — D0 result, diagnosis of structural bias, Fix A rationale.
+- `docs(research)`: Phase 0 benchmarkability audit of all 25 autoimprove skills.
+- `docs(spec)` + `docs(plan)`: multi-tenant skills refactor design and implementation plan.
+- `docs(behavioral-benchmark)`: update design with Codex adversarial review findings.
+- `docs(scripts)`: retire `replay-pattern-layer.sh` in place with retirement header.
+- `test(evaluate)`: add multi-tenant portability section.
+- `test_coverage`: 10 tests for `ar-write-round.sh`, 7 tests for `cleanup-worktrees.sh`, llm-judge tests, theme-weights test suite.
+- `skill_quality`: add directive sections to autoimprove and rubrics skills.
+- Revert `fix(experimenter)`: codify skill_quality directive-ratio pattern (empirically anti-quality).
+- `chore`: add `.magi` to gitignore.
+
 ## [0.6.0] — 2026-04-10 — Worktree Sweep + Anti-Padding Defenses
 
 ### Added
