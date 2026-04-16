@@ -1,15 +1,13 @@
 # Null-Model Validation of Idea-Matrix — Preregistered Protocol
 
-**Version:** 5.0 (2026-04-16)
+**Version:** 6.0 (2026-04-16)
 **Status:** awaiting execution (budget-gated to post-reset)
 **Budget estimate:** ~$8-9, 3-5h
 **Previous versions:**
-- v1 (commit c6245ad) — rejected in Codex round-3.
-- v2 (commit c9ffd33) — addressed round-3 but predated autoimprove#105.
-- v3 (commit 25b35e4) — addressed #105; rejected in round-4.
-- v4 (commit 478e861) — addressed round-4. Codex round-5 identified three more execution-blocking issues: (a) H2 ran only the Haiku modal-winner cell against Sonnet/Opus, so the test could not actually measure "same winner across models" — Sonnet might rank one of the 7 untested cells higher; (b) H6 conformance formula `ok / (total − dropped)` excluded drops from the denominator, masking widespread failure; (c) main 9-cell reruns with exactly 1 dropped cell survived without specified semantics, leaving post-hoc analyst discretion.
+- v1-v4 (commits c6245ad, c9ffd33, 25b35e4, 478e861) — see §11 for round-by-round history.
+- v5 (commit 41b5035) — addressed round-5. Codex round-6 then identified three high-severity issues: (a) H2 was not gated on H6, so domains with non-comparable composites could still be analyzed for cross-model agreement; (b) "modal winner" was not defined for ties — three Sonnet grids could produce three different winners with no preregistered semantics; (c) v5 H6 conflated cell conformance with rerun invalidation — one stubborn cell could zero out eight valid siblings, mismeasuring the construct.
 
-v5 addresses all three. Changes summarized in §11.
+v6 addresses all three. Changes summarized in §11.
 
 **Motivation:** Codex round-2 adversarial review identified "absence of null model" as the single strongest objection to the 11 lessons from 2026-04-15 matrix experiments. Issue #105 added two more: scoring discipline cannot be enforced by prompt alone; evaluation without codebase infrastructure context produces false dealbreakers. A validation protocol that ignores either is itself invalid.
 
@@ -22,14 +20,15 @@ This document preregisters the design BEFORE execution. Any deviation must be lo
 Each hypothesis has (a) a single pre-committed statistical test, (b) a single pre-committed threshold, (c) a dependency on schema enforcement (§3.1) succeeding. §7 mirrors these definitions literally.
 
 **H1 (L5a validity):** For a given problem domain, the mechanism-category of the matrix winner is stable across neutrally-framed reruns.
-- **Test:** for each domain, count reruns where winner's `mechanism_novelty` is blind-classified (§5) into the pre-registered target category.
-- **Threshold:** ≥14/20 in the target category for ≥2 of 3 real domains (D1, D2, D3).
-- **Prerequisite:** schema-conformance rate (§3.1) ≥ 80% for that domain. Below that, H1 is declared FAILED for the domain (not dropped — prompt-only discipline is itself what L5a would rely on in practice).
+- **Test:** for each domain, count VALID reruns (per §3.1 invalidation rule) where the winner cell's `mechanism_novelty` is blind-classified (§5) into the pre-registered target category. The "winner cell" of a rerun is the cell with the highest composite (per §3.1 Gate 5 recomputation); **ties (multiple cells with the highest composite within 0.001) count the rerun as a non-target outcome** (conservative, no analyst tiebreak).
+- **Threshold:** ≥14/20 in the target category for ≥2 of 3 real domains (D1, D2, D3). Denominator is fixed at 20 (invalidated reruns count as non-target).
+- **Prerequisite:** H6 (cell conformance ≥80%) AND H7 (rerun validity ≥80%) BOTH pass for that domain. If either fails, H1 is FAILED for that domain.
 
 **H2 (inter-model winner-identity agreement):** Sonnet and Opus identify the same winning *cell* as Haiku under the same blind neutral prompt.
-- **Test:** for each real domain, dispatch a full 9-cell grid for Sonnet (×3 reruns) and for Opus (×3 reruns). For each model, take the modal winner cell across its 3 reruns. Compare to the Haiku modal winner cell.
-- **Threshold:** Sonnet modal winner == Haiku modal winner AND Opus modal winner == Haiku modal winner, for ≥2 of 3 real domains.
-- **v5 honesty note:** v3-v4 used a single-cell rerun design that could not actually test winner identity (Sonnet might rank one of the 7 untested cells higher). v5 runs the full grid. Cost: +~$1.50 for the extra 6 × 9 = 54 Sonnet+Opus dispatches per domain × 3 domains = 162 dispatches.
+- **Prerequisite:** H6 AND H7 pass for the domain (composites must be comparable). If either fails for a domain, H2 is auto-FAILED for that domain (not skipped, not analyzed).
+- **Test:** for each real domain where the prerequisite holds, dispatch a full 9-cell grid for Sonnet (×3 reruns) and for Opus (×3 reruns). For each model, identify the **unique** modal winner cell across its 3 valid reruns. **Ties (no unique mode) count as H2 failure for that model on that domain** — no analyst tiebreak. Compare unique modal winner against Haiku's unique modal winner.
+- **Threshold:** Sonnet unique modal winner == Haiku unique modal winner AND Opus unique modal winner == Haiku unique modal winner, for ≥2 of 3 real domains.
+- **v5/v6 honesty note:** v3-v4 used single-cell rerun design that could not test winner identity. v5 ran full grid; v6 adds explicit tie semantics (any non-unique mode = fail) and prerequisite gating on H6+H7.
 
 **H3 (mechanism category is not uniform):** Empirical distribution of blind-classified winning categories is not consistent with uniform 1/4 draw.
 - **Test:** exact binomial (scipy.stats.binomtest) on target-category frequency vs p₀=0.25, one test per real domain.
@@ -44,11 +43,16 @@ Each hypothesis has (a) a single pre-committed statistical test, (b) a single pr
 - **Test:** exact binomial on D0 target-category frequency vs p₀=0.25.
 - **Threshold:** p ≥ 0.0125 (FAIL-to-reject uniformity). If D0 shows p<0.0125, H5 is falsified and D1/D2/D3 positive results lose standing.
 
-**H6 (schema discipline) — NEW in v3:** With schema enforcement (§3.1), cell outputs conform to the prescribed 4-dimension rubric at a rate high enough for composites to be comparable.
-- **Test:** compute `schema_conformance_rate = cells_with_exact_4_dims / total_cells` per domain, over all 20 reruns × 9 cells × 4 domains = 720 cell outputs.
-- **Threshold:** rate ≥ 80% per domain, in all 4 domains. One domain below 80% triggers H6 failure.
-- **Applies to:** L7 (the issue #105 finding that prompt-only discipline drifts).
-- **Consequence of H6 failure:** if H6 fails, H1 and H3 for that domain are automatically declared FAILED (composites are not comparable when dimensions drift).
+**H6 (cell-level schema conformance) — NEW in v3, scoped in v6:** Individual cell outputs pass the 7-gate validator at a rate high enough for composites to be comparable. **This metric is cell-only — it does NOT incorporate rerun invalidation. See H7 for that.**
+- **Test:** `H6_rate = ok_cells / total_dispatched_cells` per domain, where `ok_cells` is the count of cells passing all 7 gates of §3.1 (after the one allowed retry). `total_dispatched_cells = 180` per domain (9 cells × 20 reruns). An invalidated rerun's individually-passing cells STILL count as `ok` here — H6 is purely cell-level.
+- **Threshold:** rate ≥ 80% per domain, in all 4 domains.
+- **Applies to:** L7 (issue #105 — prompt-only discipline drifts).
+
+**H7 (rerun-level validity) — NEW in v6:** Reruns survive the §3.1 "any drop invalidates the entire rerun" rule at a rate high enough that the surviving reruns are a representative sample.
+- **Test:** `H7_rate = valid_reruns / total_reruns` per domain. A rerun is `valid` if it has zero dropped cells after retry. `total_reruns = 20` per domain.
+- **Threshold:** rate ≥ 80% per domain, in all 4 domains.
+- **Why separate from H6:** Codex round-6 noted that the v5 conflation of cell-conformance with rerun-invalidation could let one stubborn cell zero out eight valid siblings. Splitting fixes that — H6 measures schema discipline; H7 measures rerun usability. Both gate H1/H2/H3.
+- **Consequence of H6 OR H7 failure:** H1, H2, H3 for that domain are auto-FAILED.
 
 ### Power Analysis (Justifying n=20 and threshold 14/20)
 
@@ -304,13 +308,18 @@ def validate(cell_output, env_block_text, banned_tokens):
 - Invalidated reruns count as **9 dropped cells** toward the H6 conformance denominator (see formula below).
 - **H2 grids (Sonnet/Opus 9-cell):** same rule — any drop invalidates the whole 3-rerun grid for that model on that domain. Invalidated grid counts as failure to identify a winner; H2 for that domain auto-fails.
 
-**Conformance formula (v5 — denominator is fixed):**
-```
-schema_conformance_rate = ok_cells / total_dispatched_cells
-```
-Where `total_dispatched_cells = 9 cells × 20 reruns = 180` per domain (regardless of how many were retried, dropped, or invalidated). A cell that fails twice and is dropped counts as 0 ok-cells. An invalidated rerun's 9 cells all count as 0 ok-cells, even if some were individually `ok` — because the analysis-level rule discards them. This eliminates the v4 bug where excluding drops from the denominator could mask widespread failure.
+**Two separate metrics (v6 — fixes round-6 conflation):**
 
-**H6 consumes this rate.** H1 and H3 are conditional on `schema_conformance_rate ≥ 80%` per domain.
+```
+H6_rate = ok_cells / total_dispatched_cells           # cell-level, per §1 H6
+H7_rate = valid_reruns / total_reruns                 # rerun-level, per §1 H7
+```
+
+- `ok_cells`: count of cells that passed all 7 gates after the allowed retry. Invalidation does NOT subtract from `ok_cells` here — H6 is purely about whether individual cells obey the schema.
+- `valid_reruns`: count of reruns with zero dropped cells after retry. A single dropped cell makes the rerun invalid (per the partial-drop rule above).
+- `total_dispatched_cells = 180`, `total_reruns = 20`, per domain. Both denominators are fixed.
+
+H1, H2, H3 are conditional on **both** H6 ≥ 80% AND H7 ≥ 80% for the same domain. Either metric below threshold → H1/H2/H3 auto-fail for that domain.
 
 ---
 
@@ -360,13 +369,17 @@ Analysis code in `/tmp/null-model-runs/analyze.py`, written AFTER reruns complet
 
 Exact decision rules:
 
-- **H6 (run first):** for each domain, compute `schema_conformance_rate`. Fail H6 if any domain < 0.80. If H6 fails for domain X, H1 and H3 for X are auto-failed and skipped in analysis.
+- **H6 (run first, all 4 domains):** compute `H6_rate = ok_cells / 180`. Fail H6 for any domain < 0.80.
 
-- **H1:** for each of D1, D2, D3 where H6 passed, compute `target_count = count(rerun where blind_classified_category == pre_registered_target)`. Pass H1 if `target_count ≥ 14` for at least 2 of 3 domains.
+- **H7 (run second, all 4 domains):** compute `H7_rate = valid_reruns / 20`. Fail H7 for any domain < 0.80.
 
-- **H2:** for each of D1, D2, D3, identify Haiku modal winner cell across the 20 Haiku reruns (after H6 conformance check). Run a full 9-cell grid for Sonnet (3 reruns) and Opus (3 reruns) on the same domain prompt. For each of Sonnet and Opus, identify the modal winner cell across its 3 grids. Pass H2 if Sonnet-modal-winner == Haiku-modal-winner AND Opus-modal-winner == Haiku-modal-winner, for at least 2 of 3 real domains. Any invalidated grid (per §3.1) auto-fails H2 for that domain.
+- **For each domain, H1/H2/H3 are auto-FAILED if H6 OR H7 failed for that domain.** Otherwise proceed.
 
-- **H3:** for each of D1, D2, D3 where H6 passed, run `scipy.stats.binomtest(target_count, 20, 0.25, alternative='greater')`. Pass if p < 0.0125 for at least 2 of 3 domains.
+- **H1:** for each of D1, D2, D3 where both H6 and H7 passed, identify each valid rerun's winner cell (highest composite; ties = non-target). Compute `target_count = count(valid reruns where winner's blind-classified category == target)`. Denominator is always 20 (invalidated reruns count as non-target). Pass H1 if `target_count ≥ 14` for at least 2 of 3 domains.
+
+- **H2:** for each of D1, D2, D3 where both H6 and H7 passed, identify the **unique** Haiku modal winner cell across the 20 reruns (ties = H2 fail for domain). Run full 9-cell grid for Sonnet (3 reruns) and Opus (3 reruns). Identify each model's unique modal winner cell across its 3 valid grids (ties or invalidations = H2 fail for that model on that domain). Pass H2 if Sonnet-unique-modal == Haiku-unique-modal AND Opus-unique-modal == Haiku-unique-modal, for at least 2 of 3 domains.
+
+- **H3:** for each of D1, D2, D3 where both H6 and H7 passed, run `scipy.stats.binomtest(target_count, 20, 0.25, alternative='greater')` using the same `target_count` from H1. Pass if p < 0.0125 for at least 2 of 3 domains.
 
 - **H4:** run post-matrix falsification on modal winners of D1, D2, D3. Classify 3 verdicts. Pass if no single verdict accounts for all 3.
 
@@ -419,7 +432,17 @@ On abort, write `docs/null-model-validation-abort.md`: trigger, partial data, wh
 
 ## 11. Changelog
 
-### v4 → v5 (this version)
+### v5 → v6 (this version)
+
+Addresses Codex round-6 review of v5:
+
+| # | v5 flaw | v6 fix |
+|---|---------|--------|
+| 17 | H2 not gated on H6 — a domain with non-comparable composites could still be evaluated for cross-model winner agreement. | §1 H2 explicit prerequisite: both H6 AND H7 must pass for the domain. Failure of either auto-fails H2 for that domain. |
+| 18 | "Modal winner" undefined for ties. Three Sonnet grids could produce three different winners with no rule. | §1 H1 + H2: ties (no unique mode) count as failure (non-target for H1, fail-domain for H2). Conservative, no analyst tiebreak. |
+| 19 | v5 H6 conflated cell conformance with rerun invalidation — a single stubborn cell zeroed out eight valid siblings. H6 stopped measuring its stated construct. | Split into two metrics. **H6 (cell-level):** `ok_cells / 180`, no invalidation rollup. **H7 (rerun-level, NEW):** `valid_reruns / 20`. Both gate H1/H2/H3 at ≥80%. |
+
+### v4 → v5 (commit 41b5035)
 
 Addresses Codex round-5 review of v4:
 
