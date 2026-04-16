@@ -1,67 +1,71 @@
 # Null-Model Validation of Idea-Matrix — Preregistered Protocol
 
-**Version:** 2.0 (2026-04-16)
+**Version:** 3.0 (2026-04-16)
 **Status:** awaiting execution (budget-gated to post-reset)
-**Budget estimate:** ~$6, 3-5h
-**Previous version:** v1 (2026-04-16 morning, commit c6245ad) was rejected in Codex round-3 adversarial review for: inconsistency between §1 and §7 pass/fail definitions; arbitrary 9/12 threshold without power analysis; D0 not integrated in execution schema; categories not genuinely mutually exclusive; banned tokens purely lexical; kappa 0.6 plus correlated judges masking co-error as agreement; analysis-choice open to p-hacking; abort conditions acting as escape hatch.
+**Budget estimate:** ~$7, 3-5h
+**Previous versions:**
+- v1 (2026-04-16 morning, commit c6245ad) — rejected in Codex round-3 for inconsistent thresholds, arbitrary 9/12, D0 unintegrated, non-MEE categories, lexical-only bans, correlated judges, post-hoc analysis, escape-hatch aborts.
+- v2 (2026-04-16 afternoon, commit c9ffd33) — addressed Codex round-3 but written BEFORE autoimprove#105 surfaced. v2 assumed prompt-only scoring discipline worked. Empirical evidence from MATRIX_5 (MAGI postbox hook, 2026-04-16) showed it does NOT: 4 of 9 cells invented new dimensions (5, 6, or 7 dimensions instead of the prescribed 4), producing non-comparable composites even with `risk_direction` explicit.
 
-v2 addresses all eight criticisms. Changes summarized in §11.
+v3 addresses the two gaps issue #105 exposed: prompt-only schema discipline fails empirically (L7-hard), and neutral prompts without infrastructure context produce hallucinated dealbreakers (L8). Changes summarized in §11.
 
-**Motivation:** Codex round-2 adversarial review identified "absence of null model" as the single strongest objection to the 11 lessons from 2026-04-15 matrix experiments. Without a calibrated baseline of how often prompts of this shape converge on "hook-based", "passive-pull", or "neutral cluster" patterns by geometry alone, ≥50% of L5–L11 could be artifact rather than signal extracted by the matrix.
+**Motivation:** Codex round-2 adversarial review identified "absence of null model" as the single strongest objection to the 11 lessons from 2026-04-15 matrix experiments. Issue #105 added two more: scoring discipline cannot be enforced by prompt alone; evaluation without codebase infrastructure context produces false dealbreakers. A validation protocol that ignores either is itself invalid.
 
-This document preregisters the design BEFORE execution. Any deviation during the run must be logged as a protocol amendment, not silently corrected.
+This document preregisters the design BEFORE execution. Any deviation must be logged as a protocol amendment — see §8.
 
 ---
 
 ## 1. Hypotheses Under Test
 
-Every hypothesis has (a) a single pre-committed statistical test and (b) a single pre-committed threshold. §7 below mirrors these definitions literally — no alternative interpretations are permitted at analysis time.
+Each hypothesis has (a) a single pre-committed statistical test, (b) a single pre-committed threshold, (c) a dependency on schema enforcement (§3.1) succeeding. §7 mirrors these definitions literally.
 
 **H1 (L5a validity):** For a given problem domain, the mechanism-category of the matrix winner is stable across neutrally-framed reruns.
-- **Test:** For each domain, count how many of the 20 reruns produce a winner whose `mechanism_novelty` string is blind-classified into the same *single* category that is itself pre-registered as that domain's "prediction target" (see §2).
-- **Threshold:** Pass if count ≥ 14/20 in the pre-registered target category for ≥2 of 3 real domains (D1, D2, D3). "Modal category" is NOT used — only the pre-registered target. This prevents post-hoc category selection.
-- **Applies to:** L5a ("winner-by-mechanism-category = ship").
+- **Test:** for each domain, count reruns where winner's `mechanism_novelty` is blind-classified (§5) into the pre-registered target category.
+- **Threshold:** ≥14/20 in the target category for ≥2 of 3 real domains (D1, D2, D3).
+- **Prerequisite:** schema-conformance rate (§3.1) ≥ 80% for that domain. Below that, H1 is declared FAILED for the domain (not dropped — prompt-only discipline is itself what L5a would rely on in practice).
 
-**H2 (inter-model independence):** Sonnet and Opus identify the same winning cell as Haiku, under the same blind neutral prompt.
-- **Test:** For each of the 3 real domains, take the Haiku modal winner cell (most frequent winner across 20 reruns). Dispatch the same cell's neutral prompt to Sonnet and Opus, 5 reruns each. For each model, count how many of the 5 reruns return a cell score ≥ the Haiku modal winner's mean composite.
-- **Threshold:** Pass if Sonnet ≥3/5 AND Opus ≥3/5 for ≥2 of 3 real domains.
-- **Applies to:** L3 ("cross-model check").
+**H2 (inter-model independence):** Sonnet and Opus identify the same winning cell as Haiku under the same blind neutral prompt.
+- **Test:** for each real domain, dispatch 5 Sonnet and 5 Opus reruns of the Haiku modal winner cell. Count reruns with composite ≥ Haiku-modal-winner mean.
+- **Threshold:** Sonnet ≥3/5 AND Opus ≥3/5 for ≥2 of 3 real domains.
 
-**H3 (mechanism category is not uniform):** The empirical distribution of blind-classified winning categories across 20 reruns per domain is not consistent with uniform draw from the 4-category space.
-- **Test:** Exact binomial test on the target category's frequency vs the null p₀=0.25. One test per real domain.
-- **Threshold:** Pass if p-value < 0.0125 (Bonferroni-corrected for 4 tests: H3 on D1, D2, D3, D0) for ≥2 of 3 real domains.
-- **Applies to:** L5a, L10 ("neutral cluster is signal").
+**H3 (mechanism category is not uniform):** Empirical distribution of blind-classified winning categories is not consistent with uniform 1/4 draw.
+- **Test:** exact binomial (scipy.stats.binomtest) on target-category frequency vs p₀=0.25, one test per real domain.
+- **Threshold:** p < 0.0125 (Bonferroni-corrected, 4 tests) for ≥2 of 3 real domains.
 
-**H4 (post-matrix falsification discriminates):** Running the L11 neutral-falsification step on the modal winners of the 3 real domains produces a non-degenerate verdict distribution.
-- **Test:** Classify each of the 3 L11 falsification verdicts as {strong, framing_dependent, falsified}. Count frequencies.
-- **Threshold:** Pass if no single verdict accounts for all 3 outcomes. (With n=3 domains this is coarse — it only detects complete degeneracy.)
-- **Applies to:** L11 ("post-matrix falsification is mandatory").
-- **Honesty note:** H4 is severely underpowered. It detects only full collapse, not distributional shape. Accept as "sanity check" not "validation".
+**H4 (post-matrix falsification discriminates):** L11 falsification on modal winners of D1/D2/D3 produces non-degenerate verdict distribution.
+- **Test:** classify 3 verdicts as {strong, framing_dependent, falsified}; count.
+- **Threshold:** no single verdict accounts for all 3.
+- **Honesty note:** underpowered — sanity check, not validation.
 
-**H5 (null — the matrix does not fabricate structure from prompt geometry):** On the synthetic flat domain D0 where options are genuinely interchangeable, the matrix should NOT produce a dominant winner category.
-- **Test:** Exact binomial test on D0's target category frequency vs p₀=0.25.
-- **Threshold:** Pass if p-value ≥ 0.0125 (i.e., we FAIL to reject uniformity — uniformity is the desired outcome on D0). If p < 0.0125 on D0, H5 is falsified and the entire protocol's positive results on D1/D2/D3 lose their standing.
-- **Applies to:** meta-critique (Codex Q4).
+**H5 (null — matrix does not fabricate structure):** On synthetic flat D0, matrix should NOT produce dominant winner category.
+- **Test:** exact binomial on D0 target-category frequency vs p₀=0.25.
+- **Threshold:** p ≥ 0.0125 (FAIL-to-reject uniformity). If D0 shows p<0.0125, H5 is falsified and D1/D2/D3 positive results lose standing.
+
+**H6 (schema discipline) — NEW in v3:** With schema enforcement (§3.1), cell outputs conform to the prescribed 4-dimension rubric at a rate high enough for composites to be comparable.
+- **Test:** compute `schema_conformance_rate = cells_with_exact_4_dims / total_cells` per domain, over all 20 reruns × 9 cells × 4 domains = 720 cell outputs.
+- **Threshold:** rate ≥ 80% per domain, in all 4 domains. One domain below 80% triggers H6 failure.
+- **Applies to:** L7 (the issue #105 finding that prompt-only discipline drifts).
+- **Consequence of H6 failure:** if H6 fails, H1 and H3 for that domain are automatically declared FAILED (composites are not comparable when dimensions drift).
 
 ### Power Analysis (Justifying n=20 and threshold 14/20)
 
-Under H0 (uniform 4-category draw, p=0.25), probability of ≥14/20 in the target category is 0.00014. Bonferroni-corrected for 4 categories by union bound: ~5.5e-4. Well below α=0.01.
+Under H0 (uniform 4-category, p=0.25), P(X≥14/20) = 0.00014. Bonferroni-corrected for 4 categories: ~5.5e-4. Well below α=0.01.
 
-Under H1 with true p=0.70 (modest effect size), power ≈ 0.58. Under p=0.85, power ≈ 0.93. The protocol is therefore well-powered to detect strong effects and moderately-powered for modest effects. **Honest limitation:** a negative result (count<14/20) is consistent with both no-effect AND modest-effect-that-we-missed. A positive result excludes no-effect with >99% confidence. This asymmetry is documented and accepted.
+Under H1 true p=0.70 (modest effect), power ≈ 0.58. Under p=0.85 (strong effect), power ≈ 0.93. **Honest limitation:** negative result is consistent with both no-effect and missed-modest-effect. Positive result excludes no-effect with >99% confidence.
 
 ---
 
 ## 2. Domains (3 real + 1 synthetic control, 4 total)
 
-Domains chosen to span different answer manifolds. Each domain specifies:
-- the 3 options presented to the matrix,
-- the 4 pre-registered mechanism categories (hierarchical, MEE by design — see §2.1),
-- the **target category** (one of the 4) that we predict the matrix will select as winner,
-- the banned tokens (lexical floor; conceptual ceiling addressed in §3).
+Each domain specifies: 3 options, 4 MEE mechanism categories (single-axis partition — see §2.1), target category prediction, banned tokens, and — new in v3 — an **environment block** (L8 infrastructure context).
 
 ### 2.1 MEE Category Design Principle
 
-v1 categories overlapped (Redis on disk fits both `network-shared` and `persistent-disk`). v2 taxonomizes each domain by a **single primary axis**, making categories a partition rather than a tagset. If a string could plausibly fit two categories under v1, it falls into exactly one under v2 because we force a single axis of differentiation.
+v1 categories overlapped. v2 fixed by choosing a single axis of differentiation per domain. v3 retains this; each taxonomy is a partition, not a tagset.
+
+### 2.2 Environment Blocks (L8 — New in v3)
+
+Each domain pre-registers a paragraph describing the deployment context. This prevents haiku from hallucinating dealbreakers about infrastructure that is present or absent. The block is part of every cell prompt (§3).
 
 ### Domain D1: Caching strategy for a read-heavy web service
 
@@ -70,16 +74,24 @@ v1 categories overlapped (Redis on disk fits both `network-shared` and `persiste
 - B: Shared Redis cluster
 - C: Read-replica database with connection pooling
 
-**Axis:** *Where does the authoritative read-path state live?* (MEE by construction — one answer per architecture)
+**Axis:** *Where does the authoritative read-path state live?*
 - `in-process-private` — serving process holds its own copy, no coordination (A)
 - `out-of-process-shared` — separate coordinating process, networked (B)
 - `source-replica` — read-path state is a replica of the system of record (C)
-- `recompute-on-demand` — no dedicated cached state; compute each time
+- `recompute-on-demand` — no dedicated cached state
 
-**Target category (pre-registered prediction):** `out-of-process-shared` (B). Based on conventional wisdom for read-heavy services; if matrix reproduces this, signal exists.
+**Target category:** `out-of-process-shared` (B).
 
-**Banned tokens (lexical floor):**
-`redis`, `memcached`, `lru`, `cdn`, `cache`, `ttl`, `eviction`, `invalidation`, `hazelcast`, `ignite`, any product names.
+**Environment block:**
+```
+Service runs as 8 stateless replicas behind a load balancer on Kubernetes.
+PostgreSQL primary is the system of record (4 vCPU, 16GB, read IOPS at 60% ceiling).
+Prometheus + Grafana for metrics. Service mesh (Istio) provides mTLS and retries.
+No existing cache infrastructure. Network latency within cluster <1ms p99.
+Deploy pipeline rolls replicas 1-at-a-time; no blue/green.
+```
+
+**Banned tokens:** `redis`, `memcached`, `lru`, `cdn`, `cache`, `ttl`, `eviction`, `invalidation`, `hazelcast`, `ignite`, product names.
 
 ### Domain D2: Schema migration on a 50M-row production table
 
@@ -88,18 +100,24 @@ v1 categories overlapped (Redis on disk fits both `network-shared` and `persiste
 - B: Shadow table + atomic rename
 - C: Dual-write to old and new columns with async backfill
 
-**Axis:** *At what moment does the new state become authoritative?*
-- `instant-cutover` — single atomic moment (A and B share this pattern at different layers, so we refine: B's cutover is the rename, A's is the ALTER completion)
-- Refined axis: *Does the migration hold a write lock during its runtime?*
-- `lock-and-mutate` — holds lock, mutates in place (A)
-- `parallel-build-then-swap` — builds new state parallel, swaps atomically (B)
-- `incremental-reconcile` — writes flow to both, reconcile asynchronously (C)
-- `rebuild-from-log` — no lock, no swap; replay event log to derive new schema
+**Axis:** *Does the migration hold a write lock during its runtime?*
+- `lock-and-mutate` (A)
+- `parallel-build-then-swap` (B)
+- `incremental-reconcile` (C)
+- `rebuild-from-log` — no lock, replay event log
 
-**Target category:** `parallel-build-then-swap` (B). Conventional wisdom for production migrations.
+**Target category:** `parallel-build-then-swap` (B).
 
-**Banned tokens:**
-`flyway`, `liquibase`, `alembic`, `gh-ost`, `pt-online-schema-change`, `rails migration`, `django migration`, any tool names.
+**Environment block:**
+```
+Primary PostgreSQL 15, 50M-row table under active write load (~200 writes/sec).
+Write downtime tolerance: 5 minutes planned maintenance window max.
+Read replicas exist (2 async). Logical replication available.
+No CDC pipeline. No event log. Application code controlled by same team.
+Rollback SLA: 10 minutes from detection. Customer-facing — errors visible.
+```
+
+**Banned tokens:** `flyway`, `liquibase`, `alembic`, `gh-ost`, `pt-online-schema-change`, `rails migration`, `django migration`, tool names.
 
 ### Domain D3: Retry strategy for flaky external API
 
@@ -109,15 +127,23 @@ v1 categories overlapped (Redis on disk fits both `network-shared` and `persiste
 - C: Dead-letter queue with manual replay
 
 **Axis:** *What information drives the retry decision?*
-- `time-only` — retry timing is a function of attempt count and fixed backoff (A)
-- `failure-rate-state` — retry behavior adapts based on recent failure observations (B)
-- `deferred-delegation` — the decision is handed off to a later actor (C)
-- `parallel-fallback` — multiple targets attempted concurrently, first success wins
+- `time-only` (A)
+- `failure-rate-state` (B)
+- `deferred-delegation` (C)
+- `parallel-fallback` — multiple targets concurrently
 
-**Target category:** `failure-rate-state` (B). Conventional wisdom for systemic protection against flaky dependencies.
+**Target category:** `failure-rate-state` (B).
 
-**Banned tokens:**
-`tenacity`, `retry`, `backoff`, `circuit`, `hystrix`, `resilience4j`, `polly`, `jitter`, any library names.
+**Environment block:**
+```
+API consumed: third-party payment processor. p99 latency 500ms, failure rate
+spikes to 30% during their deploys (weekly, unannounced). No webhook/callback
+from them. Our service processes 50 req/sec peak. Idempotency keys are supported.
+Redis available for shared state. Ops team on-call 24/7 for P1; P2 batched.
+User-facing latency budget 1.5s p95. Failed request cost: blocked checkout.
+```
+
+**Banned tokens:** `tenacity`, `retry`, `backoff`, `circuit`, `hystrix`, `resilience4j`, `polly`, `jitter`, library names.
 
 ### Domain D0 (synthetic control): Deploy window choice
 
@@ -126,29 +152,36 @@ v1 categories overlapped (Redis on disk fits both `network-shared` and `persiste
 - B: Deploy on weekday afternoons
 - C: Deploy on weekday evenings
 
-**Axis (pre-registered for completeness, though we predict no signal):** *Time-of-day category.*
+**Axis:** time-of-day.
 - `morning`
 - `afternoon`
 - `evening`
-- `other` (night/weekend/never, covering contrarian remix)
+- `other` (night/weekend/never)
 
-**Target category:** NONE — D0 is the null control. We predict uniform distribution. H5 passes when D0 shows no dominant category.
+**Target category:** NONE — we predict no signal.
 
-**Banned tokens:** `standup`, `lunch`, `traffic`, `on-call`, `monitoring`, `rollback`. (These are framing nudges; if the matrix uses them to discriminate, we'd rather not know — we want to force a genuinely flat choice.)
+**Environment block:**
+```
+Team is 8 engineers in a single time zone. No external SLAs tied to deploy windows.
+CI takes 12 minutes. Rollback takes 3 minutes. No global traffic patterns worth
+mentioning — traffic distribution across the day is flat within 10%.
+No users report time-of-day preferences.
+```
+(Deliberately flat — every window is equivalent.)
+
+**Banned tokens:** `standup`, `lunch`, `traffic`, `on-call`, `monitoring`, `rollback`.
 
 ---
 
 ## 3. Neutral Prompt Construction
 
-Each cell prompt is derived from a template, with domain-specific option descriptions. Neutrality is enforced at two levels:
+Each cell prompt is constructed from a template with two neutrality gates and one schema gate:
 
-**Lexical (automated):** regex scan the final prompt text for banned tokens. Any hit = protocol violation, rebuild prompt from template.
+**Lexical gate (automated):** regex scan for banned tokens. Hit = rebuild.
+**Conceptual gate (human):** Pedro reads the ~12 unique prompt bodies (cells share prefixes) and rejects on paraphrased leakage. ~5 min per domain.
+**Schema gate (automated, new in v3):** after dispatch, each cell output is JSON-parsed and validated for exact 4-dimension schema (§3.1).
 
-**Conceptual (manual):** after lexical scan passes, a human-in-the-loop (Pedro) reads the 12 cell prompts per domain before dispatch and approves or rejects based on whether the prompt leaks the answer via paraphrase. If Pedro rejects, rebuild. This gate exists because purely lexical bans are defeat-able by trivial rephrasing ("in-memory key-value store" for Redis) — only human judgment catches conceptual leakage.
-
-**Cost of manual gate:** ~5 minutes per domain (60 prompts total across D0-D3 × 9 cells, but cells share a shared context block so Pedro reviews ~12 unique prompt bodies total). Acceptable.
-
-**Cell template (Haiku version):**
+**Cell template (Haiku):**
 ```
 CRITICAL: Do NOT invoke any tools. Answer only from this prompt. Return JSON immediately.
 
@@ -157,161 +190,209 @@ You are scoring a design option for the following problem.
 ## Problem
 {PROBLEM}
 
-## Option Under Evaluation
-{OPTION_DESCRIPTION}
+## Available Infrastructure / Environment
+{ENVIRONMENT_BLOCK}
 
 ## All Options Under Consideration
 A: {A_description}
 B: {B_description}
 C: {C_description}
 
-## SCORING CONVENTION (MANDATORY — HIGHER=BETTER on all dimensions)
+## Option Under Evaluation
+Cell {N}: {LABEL} — {OPTION_DESCRIPTION}
+
+## SCORING CONVENTION (MANDATORY — HIGHER=BETTER on ALL dimensions)
+
+You MUST score EXACTLY these four dimensions, using these EXACT keys. Do not add,
+rename, or omit any. Your output will be schema-validated and rejected if the
+dimension keys do not match.
+
 - feasibility: 1 showstopper → 10 trivial to build
-- risk: 1 highest risk → 10 lowest risk / most robust
+- risk: 1 highest risk → 10 lowest risk / most robust (HIGHER = SAFER)
 - synergy_potential: 1 incompatible → 10 composes cleanly
 - implementation_cost: 1 days of work → 10 minutes
 
-## Output (JSON only)
+## Output (JSON only, no prose, no fences)
+
 {
   "cell": {N},
   "label": "{LABEL}",
   "risk_direction_used": "higher_safer",
-  "scores": {"feasibility": N, "risk": N, "synergy_potential": N, "implementation_cost": N},
-  "composite": <avg of 4>,
-  "mechanism_novelty": "<one sentence naming what THIS option does that others do not; no banned terms; no hedged or multi-category answers — commit to one>",
-  "dealbreaker": null or "<one sentence>"
+  "scores": {
+    "feasibility": <int 1-10>,
+    "risk": <int 1-10>,
+    "synergy_potential": <int 1-10>,
+    "implementation_cost": <int 1-10>
+  },
+  "composite": <mean of the 4 scores>,
+  "mechanism_novelty": "<one sentence; no banned tokens; commit to one mechanism, no hedging>",
+  "dealbreaker": null or "<one sentence; if risk is based on infrastructure, only cite infrastructure explicitly listed in the Environment block above>"
 }
+
+Your "scores" object must contain EXACTLY those 4 keys. Any other keys cause
+rejection and re-dispatch. Do not include correctness, complexity, robustness,
+token_efficiency, coordination_power, debuggability, failure_isolation,
+leverage, novelty, composability, runtime_safety, latency_impact, reliability,
+observability_gain, operational_complexity, security_surface, safety,
+hook_coverage, or any other dimension. Four dimensions. Named exactly as above.
 ```
 
-*Cell 8 (remix)* addendum: `Propose a hybrid. Describe its mechanism in one sentence using new vocabulary — do NOT reference options A/B/C by name.`
+### 3.1 Schema Validation (NEW in v3, responding to issue #105)
 
-*Cell 9 (contrarian)* addendum: `Propose a fundamentally different approach. Describe its mechanism in one sentence; the mechanism must NOT belong to the same family as any of A/B/C.`
+After each rerun batch, every cell output is validated:
+
+```python
+REQUIRED = {"feasibility", "risk", "synergy_potential", "implementation_cost"}
+
+def validate(cell_output):
+    try:
+        obj = json.loads(cell_output)
+        scores = obj.get("scores", {})
+        if set(scores.keys()) != REQUIRED:
+            return "schema_fail"
+        if obj.get("risk_direction_used") != "higher_safer":
+            return "convention_fail"
+        return "ok"
+    except json.JSONDecodeError:
+        return "parse_fail"
+```
+
+**Enforcement:**
+- `schema_fail`, `convention_fail`, or `parse_fail` → re-dispatch that cell ONCE with an even stricter preamble ("Your previous response added dimensions beyond the required four. Use EXACTLY these keys: feasibility, risk, synergy_potential, implementation_cost. No others.").
+- Second failure → mark that cell as `dropped` for the rerun.
+- Any rerun with ≥2 dropped cells → mark the entire rerun as `dropped`.
+- Track `schema_conformance_rate = ok_cells / total_cells` per domain.
+
+**H6 consumes this rate.** H1 and H3 are conditional on schema_conformance_rate ≥ 80% per domain.
 
 ---
 
-## 4. Execution Plan (v2 — Integrated D0)
+## 4. Execution Plan
 
-**Per domain × 4 domains (D0, D1, D2, D3):**
-- 20 Haiku reruns, `allowed-tools: []`, temperature default.
+**Per domain × 4 domains:**
+- 20 Haiku reruns, `allowed-tools: []`.
 
-**Plus for H2 only (3 real domains):**
-- 5 Sonnet reruns of the Haiku modal winner cell.
-- 5 Opus reruns of the same cell.
+**Plus for H2 only (D1, D2, D3):**
+- 5 Sonnet reruns of Haiku modal winner cell.
+- 5 Opus reruns of same cell.
 
 **Total dispatches:**
-- 4 × 20 × 9 = 720 Haiku cell-level dispatches.
-- 3 × 2 × 5 = 30 Sonnet+Opus cell-level dispatches.
-- Plus blind-coding judges (§5): ~3 dispatches per domain × 4 domains = 12.
-- Grand total: ~762 dispatches.
+- 4 × 20 × 9 = 720 Haiku cell dispatches.
+- 3 × 2 × 5 = 30 Sonnet+Opus cell dispatches.
+- Schema re-dispatches: estimated 15-25% failure rate → ~120 extra dispatches.
+- Blind-coding judges (§5): 12 dispatches.
+- **Grand total: ~880 dispatches.**
 
-**Parallelism:** up to 9 parallel per batch. Execution is batched per-rerun (9 cells in parallel), 20 reruns per domain. Full pipeline: ~20 min per domain via parallelism. 4 domains: ~90 min wall clock. Add Sonnet/Opus and coding: +30 min.
+**Budget:** Haiku ~$1.80, Sonnet+Opus ~$0.60, coding ~$0.30, re-dispatches ~$0.30. Total ~$3.00. Add 2× buffer: **$6-7**.
 
-**Budget estimate:** Haiku ~$0.002/call × 720 = $1.44. Sonnet+Opus ~$0.02 × 30 = $0.60. Coding ~$0.30. Total ~$2.40. Add 2× buffer: **$5-6**.
-
-**Output schema:** every rerun writes to `/tmp/null-model-runs/<DOMAIN>/rerun-XX.json`. (Runs NOT committed to repo — volume; analysis summary IS committed.)
-
----
-
-## 5. Blind Coding (Mechanism Category Classification, v2)
-
-Addresses Codex critique: kappa 0.6 with correlated model judges masks co-error. v2 strengthens three ways:
-
-1. **Higher kappa threshold:** require Cohen's kappa ≥ 0.75 between the two model judges. 0.6 is lenient for a protocol meant to retract lessons; 0.75 is the "substantial agreement" threshold in Landis-Koch.
-
-2. **Third judge is HUMAN, not model:** disagreements between Haiku and Sonnet judges are resolved by Pedro, not Opus. This breaks the model-family correlation chain. Human adjudication cost: ~15 min of Pedro time for ~80 disagreements (worst case, if kappa=0.75 exactly).
-
-3. **Explicit co-error acknowledgment:** the REPORT produced in §9 must include a section comparing human-only adjudications against model consensus. If on sampled subset the human disagrees with both judges >15% of the time, kappa between judges is co-error, not signal, and the corresponding H-result is downgraded to "model-correlated coding; human validation required for confidence".
-
-**Procedure:**
-1. Extract every `winner_mechanism_novelty` string → `coding-input.tsv`, columns `coding_id | text`. No rerun_id, no model, no cell.
-2. Shuffle rows.
-3. Dispatch Haiku judge and Sonnet judge with identical shuffled input and the category taxonomy for that domain (including `other`).
-4. Compute Cohen's kappa.
-5. **If kappa < 0.75:** domain fails its H1/H3 test. Record as failure, not as "dropped" — this is the v2 fix for "aborted = silent pass".
-6. For rows where Haiku and Sonnet disagree: Pedro adjudicates. Time-budget 15 min. If unable to complete, remaining disagreements are marked `other` (conservative — reduces H1 pass rate, never inflates it).
-7. Write resolved classifications back to each rerun record.
+**Wall clock:** ~2h with parallelism (9 cells parallel, 20 reruns per domain, 4 domains).
 
 ---
 
-## 6. Synthetic Control (H5) — Integrated into Execution Plan
+## 5. Blind Coding (v3 — unchanged from v2 but clarified)
 
-v1 treated D0 as optional add-on. v2 runs D0 **first**, before D1-D3, with identical schema and identical blind-coding pipeline. If H5 fails (D0 shows dominant category), abort the entire protocol — no point running D1-D3 if the null baseline is already poisoned by prompt geometry.
+Requirements:
+1. Two judges from different model families (Haiku + Sonnet).
+2. Cohen's kappa ≥ 0.75 threshold — below that, domain H1/H3 declared FAILED (not dropped).
+3. Third judge is HUMAN (Pedro) — adjudicates disagreements. Breaks model-family correlation chain.
+4. Co-error check in report: human-vs-model-consensus disagreement rate on sampled subset. If > 15%, downgrade H-results with the note "coding may reflect model co-error".
 
-D0 categories pre-registered in §2. D0 banned tokens pre-registered in §2.
+Procedure same as v2 §5.
+
+---
+
+## 6. Synthetic Control D0
+
+D0 runs first. If H5 fails on D0 (dominant category emerges on flat options), abort the entire protocol — the null baseline is poisoned by prompt geometry, and no amount of positive results on D1/D2/D3 rescue that.
 
 ---
 
 ## 7. Analysis (Mirrors §1 Exactly)
 
-Analysis code in `/tmp/null-model-runs/analyze.py`, written AFTER all reruns complete. Pre-committed decision rules:
+Analysis code in `/tmp/null-model-runs/analyze.py`, written AFTER reruns complete, < 100 lines, zero free choices.
 
-- **H1:** for each of D1, D2, D3 (not D0), compute `target_count = count(rerun where blind_classified_category == pre_registered_target)`. Pass H1 if `target_count ≥ 14` for at least 2 of the 3 domains. (Exact language from §1.)
+Exact decision rules:
 
-- **H2:** for each of D1, D2, D3, identify the Haiku modal winner cell. Count Sonnet reruns with composite ≥ Haiku-mean and Opus reruns with composite ≥ Haiku-mean (n=5 each). Pass if both counts ≥ 3/5 for at least 2 of the 3 domains. (Exact from §1.)
+- **H6 (run first):** for each domain, compute `schema_conformance_rate`. Fail H6 if any domain < 0.80. If H6 fails for domain X, H1 and H3 for X are auto-failed and skipped in analysis.
 
-- **H3:** for each of D1, D2, D3, run scipy.stats.binom_test(target_count, 20, 0.25, alternative='greater'). Pass if p < 0.0125 for at least 2 of 3 domains. (Exact from §1. Test is binomial, not chi-sq, and is fixed here — no choice at analysis time.)
+- **H1:** for each of D1, D2, D3 where H6 passed, compute `target_count = count(rerun where blind_classified_category == pre_registered_target)`. Pass H1 if `target_count ≥ 14` for at least 2 of 3 domains.
 
-- **H4:** run post-matrix falsification on the modal winner of each of D1, D2, D3. Classify the 3 verdicts. Pass if no single verdict type is all 3. (Exact from §1.)
+- **H2:** for each of D1, D2, D3, identify Haiku modal winner cell. For each of Sonnet and Opus, count reruns with composite ≥ Haiku-mean. Pass if both counts ≥ 3/5 for at least 2 of 3 domains.
 
-- **H5:** run `scipy.stats.binom_test(d0_target_count, 20, 0.25, alternative='greater')` where `d0_target_count` is the most frequent category on D0. Pass if p ≥ 0.0125. (Exact from §1.)
+- **H3:** for each of D1, D2, D3 where H6 passed, run `scipy.stats.binomtest(target_count, 20, 0.25, alternative='greater')`. Pass if p < 0.0125 for at least 2 of 3 domains.
 
-**Any deviation from these exact rules is a protocol violation.** The analysis script must be < 100 lines and contain zero free choices.
+- **H4:** run post-matrix falsification on modal winners of D1, D2, D3. Classify 3 verdicts. Pass if no single verdict accounts for all 3.
+
+- **H5:** `scipy.stats.binomtest(d0_target_count, 20, 0.25, alternative='greater')` where `d0_target_count` is the most frequent category on D0. Pass if p ≥ 0.0125.
+
+Any deviation is a protocol violation.
 
 ---
 
 ## 8. Protocol Amendments
 
-Any change after execution start requires:
+Any change post-execution-start requires:
 1. Dated "Amendment" section below.
 2. Explicit justification.
-3. Note which hypotheses the change affects.
-4. Amendment counts as failure for any hypothesis where the amendment relaxes a threshold or substitutes a test. This blocks "move-the-goalposts" amendments.
+3. Note affected hypotheses.
+4. **Amendment counts as failure for any hypothesis where it relaxes a threshold or substitutes a test.** Blocks move-the-goalposts.
 
-No amendments yet (v2 is still pre-execution).
+No amendments yet.
 
 ---
 
 ## 9. Expected Deliverable
 
-After execution, produce `docs/null-model-validation-report.md`:
+`docs/null-model-validation-report.md`:
+- H1-H6 pass/fail table with exact numbers.
+- Schema conformance rate per domain (H6 output).
+- Per-lesson decision: which of L1-L11 are supported, downgraded, or retracted.
+- Co-error check results.
+- Updated idea-matrix skill PR (if any).
+- Codex round-5 invitation.
 
-- H1/H2/H3/H4/H5 pass/fail table with exact numbers.
-- Per-lesson decision: which of L1–L11 are supported, downgraded, or retracted based on which hypotheses passed.
-- Co-error check (§5.3): human-vs-model-consensus disagreement rate on sampled subset; downgrade affected H-results if rate > 15%.
-- Updated idea-matrix skill PR (if any) linked for re-review.
-- Codex round-4 adversarial review invitation — give Codex the full data and let it challenge.
-
-Budget for report + codex round 4: ~$1 extra.
-
----
-
-## 10. Abort Conditions (v2 — Abort = Failure, Not Escape)
-
-The protocol aborts mid-run on:
-- Total cumulative cost exceeds 2× the $6 budget estimate.
-- Banned-token scan trips more than once per domain after 2 rebuild attempts (signals the prompt space is not neutralizable for this domain).
-- Kappa between model judges < 0.75 for a given domain (explicit failure per §5.5).
-- Pedro rejects conceptual-leakage review (§3) and cannot construct an acceptable neutral prompt.
-
-**v2 rule:** every abort counts as **failure of the hypothesis that was being tested**. Aborts are never "inconclusive" or "dropped" — they count against the relevant H. This removes the v1 escape hatch where "aborted" masked a genuine null result.
-
-On abort, write `docs/null-model-validation-abort.md` with: trigger, partial data, explicit statement of which hypotheses now fail, and which lessons are consequently retracted/downgraded.
+Budget for report + codex: ~$1.
 
 ---
 
-## 11. Changelog (v1 → v2)
+## 10. Abort Conditions (v3 — Abort = Failure)
 
-Addresses each of the 8 Codex round-3 critiques explicitly:
+Protocol aborts on:
+- Cumulative cost > 2× budget ($14).
+- Banned-token scan trips >1 after 2 rebuild attempts per domain.
+- Kappa < 0.75 between model judges per domain → that domain's H1/H3 = FAILED (not aborted; v2 rule).
+- Pedro rejects conceptual-leakage review and cannot construct acceptable neutral prompt.
+- **NEW v3:** Schema conformance rate for any domain < 0.50 after re-dispatches → domain auto-fails H6, H1, H3; if this happens on ≥2 domains, whole protocol aborts (prompt-only schema discipline is unfixable in this regime).
 
-| # | v1 flaw | v2 fix |
+**Rule:** every abort counts as failure of the relevant hypothesis. Never "inconclusive". Never "dropped silently".
+
+On abort, write `docs/null-model-validation-abort.md`: trigger, partial data, which hypotheses fail, which lessons retract/downgrade.
+
+---
+
+## 11. Changelog
+
+### v2 → v3 (this version)
+
+Addresses autoimprove#105 findings from MATRIX_5 (postbox hook, 2026-04-16):
+
+| # | v2 flaw | v3 fix |
 |---|---------|--------|
-| 1 | §1 and §7 disagreed on H1/H2/H4 thresholds | §7 now mirrors §1 literally; single test per hypothesis |
-| 2 | 9/12 threshold unjustified | §1 power analysis block; n=20 threshold 14/20 with honest power quotes |
-| 3 | D0 not in execution schema, no categories | §6 D0 runs first; §2 D0 categories pre-registered |
-| 4 | Categories not MEE (e.g., Redis-on-disk fits 2) | §2.1 single-axis principle; categories rewritten as partitions |
-| 5 | Banned tokens purely lexical | §3 adds human conceptual-leakage gate on top of lexical scan |
-| 6 | Kappa 0.6 + two model judges = co-error | §5 kappa ≥ 0.75; human as 3rd judge; co-error check in report |
-| 7 | "chi-sq OR exact multinomial" = post-hoc choice | §7 single test per H (exact binomial everywhere); script <100 lines |
-| 8 | Abort = inconclusive escape hatch | §10 abort = hypothesis failure; §8 amendments lowering rigor count as fail |
+| 9 | Assumed prompt-only schema discipline worked. MATRIX_5 disproved: 4/9 cells invented extra dimensions (5-7 dims instead of 4). | §3 template now includes explicit "Your output will be schema-validated and rejected" + enumeration of forbidden dimension names. §3.1 adds schema validation procedure with re-dispatch and drop rules. H6 enforces ≥80% conformance as prerequisite for H1/H3. |
+| 10 | Neutral prompts lacked codebase infrastructure context, leading haiku to hallucinate dealbreakers (L8). | §2.2 introduces Environment Blocks; each domain pre-registers one in §2. §3 template has mandatory "Available Infrastructure" section. Dealbreakers citing non-listed infrastructure are rejected. |
 
-v1 was stronger than nothing; v2 is the minimum defensible protocol given Codex's critique. v3 would require genuinely independent judges (external human coders, not Pedro alone) and n≥30 per domain for power ≥ 0.7 on modest effects — out of current budget.
+### v1 → v2 (commit c9ffd33)
+
+Addressed Codex round-3 (see v2 document history). Summary:
+- §1/§7 alignment (single test per H, no post-hoc choice).
+- Power analysis for n=20 threshold 14/20.
+- D0 integrated (first, with categories).
+- MEE categories via single-axis principle.
+- Lexical ban + human conceptual-leakage gate.
+- Kappa ≥ 0.75, human 3rd judge.
+- Single test per hypothesis.
+- Abort = hypothesis failure.
+
+### v3 meta-commentary
+
+v3 is now constrained by 3 rounds of adversarial review (Codex rounds 2 + 3 + issue #105). A v4 would need external human coders (not Pedro alone, to eliminate the human-also-correlated-to-Claude-outputs problem) and n≥30 per domain for power ≥0.7 on modest effects — out of current budget. v3 is the defensible floor given available resources.
