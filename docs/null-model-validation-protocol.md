@@ -1,6 +1,6 @@
 # Null-Model Validation of Idea-Matrix — Preregistered Protocol
 
-**Version:** 10.0 (2026-04-16)
+**Version:** 10.1 (2026-04-16, post-Codex round-11 wording sync)
 **Status:** awaiting execution (budget-gated to post-reset)
 **Budget estimate:** ~$8-9, 3-5h
 **Previous versions:**
@@ -460,7 +460,15 @@ On abort, write `docs/null-model-validation-abort.md`: trigger, partial data, wh
 
 ## 11. Changelog
 
-### v9 → v10 (this version)
+### v10 → v10.1 (this version, wording-only consistency sweep)
+
+Codex round-11 noted that §3.1 still carried a v9-era Haiku H2 paragraph ("drop-and-aggregate, fail only if remaining list is empty or has no unique mode") that contradicted the v10 rule (16-winner-bearing floor matching H6/H7 80%) introduced in §1 and §7. This was a wording bug, not a rule change — the v10 §1/§7 procedure was already authoritative.
+
+| # | v10 wording bug | v10.1 fix |
+|---|-----------------|-----------|
+| 27 | §3.1 still described Haiku H2 as drop-and-aggregate without the 16-winner floor. Same Haiku data could be scored two ways. | §3.1 paragraph rewritten to state the 16-winner-bearing floor (matching H6/H7 ≥80%) explicitly; relabeled as v10. No semantic change to the operative rule — §1 and §7 already had the correct rule. v10.1 is a consistency cleanup, not a protocol amendment. |
+
+### v9 → v10 (commit e86205c)
 
 Addresses Codex round-10 review of v9:
 
