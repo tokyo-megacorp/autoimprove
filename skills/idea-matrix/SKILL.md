@@ -114,7 +114,8 @@ TodoWrite([
   {id: "cell-7", content: "Idea #7 — [what all three together achieve]", status: "pending"},
   {id: "cell-8", content: "Idea #8 — [best-of-breed: what the remix optimizes for]", status: "pending"},
   {id: "cell-9", content: "Idea #9 — [contrarian: what assumption this challenges]", status: "pending"},
-  {id: "devil", content: "Devil's advocate — stress-test the winner", status: "pending"}
+  {id: "devil", content: "Devil's advocate — stress-test the winner", status: "pending"},
+  {id: "falsification", content: "Post-matrix falsification — neutral re-probe (L11)", status: "pending"}
 ])
 ```
 
@@ -142,16 +143,26 @@ Summarize into a dense, self-contained brief that covers:
 **3c. Extract per-option context:**
 For each option, extract specific code patterns or files that are most relevant. This becomes part of that cell's agent prompt.
 
-**3d. Assemble agent prompts:**
-Each agent prompt should be fully self-contained at ~800 tokens total:
+**3d. Produce an environment block (~150 tokens) — NEW (addresses #105 L8):**
+Summarize the deployment and runtime context that cells should assume. This prevents agents from hallucinating dealbreakers about infrastructure that is or is not present (the `postbox hook` matrix dealbroke `A+B+C` citing race conditions the MAGI daemon already serializes — because the prompt never mentioned MAGI's role). Include:
+- Existing daemons, services, single-writer arbiters
+- Tables, schemas, or stores relevant to the option space
+- Hook framework points and invariants
+- Constraints (SLAs, rollback budgets, team size) that bound realistic trade-offs
+
+Store as `ENV_BLOCK`. If the problem is truly context-free, emit a one-line `ENV_BLOCK` that says so — do not fabricate infrastructure.
+
+**3e. Assemble agent prompts:**
+Each agent prompt should be fully self-contained at ~950 tokens total:
 - Problem statement (~100 tokens)
 - Architecture brief (~500 tokens)
+- Environment block (~150 tokens)
 - Cell assignment + option descriptions (~100 tokens)
 - Scoring rubric (~100 tokens)
 
-Store as `BRIEF` (shared) and `CELL_CONTEXT[1..9]` (per-cell additions if needed).
+Store as `BRIEF` (shared), `ENV_BLOCK` (shared), and `CELL_CONTEXT[1..9]` (per-cell additions if needed).
 
-**Why this matters:** No tool calls = agents are faster and cheaper. Pre-digested context = haiku reasons about the right things instead of exploring blindly. The orchestrator does research; haiku does evaluation.
+**Why this matters:** No tool calls = agents are faster and cheaper. Pre-digested context = haiku reasons about the right things instead of exploring blindly. The orchestrator does research; haiku does evaluation. The env block is the anti-hallucination gate — dealbreakers must be grounded in it.
 
 ---
 
@@ -184,6 +195,11 @@ You are an idea explorer scoring a specific design option or combination.
 
 ## Architecture Brief
 {BRIEF}
+
+## Available Infrastructure / Environment
+{ENV_BLOCK}
+
+Dealbreakers in your output MUST be grounded in the items listed above. Do not cite infrastructure, daemons, services, or invariants that are not named here — if a risk depends on something not in this block, the risk is hallucinated and the cell will be re-dispatched.
 
 ## All Options Under Consideration
 {For each option: label, name, description}
@@ -279,14 +295,37 @@ TodoWrite([{id: "cell-1", status: "in_progress"}, ..., {id: "cell-9", status: "i
 
 # 5. Collect and Validate Results
 
-As agents return, validate and track each result:
+As agents return, validate each result through the gates below. This is the anti-drift layer (addresses #105 L7): prompt-only schema discipline failed empirically on MATRIX_5 (postbox hook), where 4 of 9 cells invented 5-7 dimensions instead of the prescribed 4, producing non-comparable composites. Prompt instructions are not enough; post-dispatch validation is required.
 
-- **Sparse-output check:** if the raw response is ≤ 50 characters, re-prompt once: `"Your response appears incomplete. Return the full JSON object with all fields — do not truncate."` If still sparse, record `error: "sparse_output"` and continue.
-- **Valid JSON** with `scores`, `dealbreaker`, `verdict` fields: store in `RESULTS[cell_number]`. Mark cell completed: `TodoWrite([{id: "cell-N", status: "completed"}])`.
-- **Invalid JSON**: re-prompt once: `"Your response was not valid JSON. Return only the corrected JSON object."` If still invalid, record as `{ "cell": N, "label": "...", "error": "malformed_json" }` and continue.
-- **Score validation**: All scores must be 1-5. If out of range, clamp to nearest valid value.
+**Gate 1 — Parseable JSON.**
+If raw response ≤ 50 chars or does not parse as JSON, re-prompt ONCE with: `"Your response was not valid JSON or was incomplete. Return only the corrected JSON object with all required fields."` If still invalid, record `error: "malformed_json"` or `error: "sparse_output"` and continue.
 
-Wait for all 9 agents to complete before proceeding to synthesis.
+**Gate 2 — Exact 4-dimension schema.**
+`scores` must contain EXACTLY the four keys: `feasibility`, `risk`, `synergy_potential`, `implementation_cost`. If any other keys are present (e.g., `correctness`, `robustness`, `token_efficiency`, `complexity`, `leverage`, `novelty`, `composability`, `runtime_safety`, `latency_impact`, `reliability`, `observability_gain`, `operational_complexity`, `security_surface`, `hook_coverage`, or any others), the cell has dimension-drifted. Re-dispatch ONCE with a stricter preamble that names the violation:
+> `"Your previous response added dimensions beyond the required four. Use EXACTLY these four keys in scores: feasibility, risk, synergy_potential, implementation_cost. No others. Any other keys cause rejection."`
+
+If the second response still has extra keys, record `error: "schema_fail"` and drop the cell.
+
+**Gate 3 — Convention declared.**
+`risk_direction_used` must equal the string `"higher_safer"`. If missing or inverted, re-dispatch ONCE with: `"risk_direction_used must be \"higher_safer\". If your prior scoring used lower=safer for risk, re-score with HIGHER=SAFER per the convention table."` If second response still non-conforming, record `error: "convention_fail"` and drop the cell.
+
+**Gate 4 — Score bounds.**
+All scores must be integers in [1, 5]. If out of range or non-integer, clamp integer values and log a warning. If non-integer (e.g., strings), re-dispatch once; drop if second response still non-conforming.
+
+**Gate 5 — Dealbreaker grounding (L8 enforcement).**
+If `dealbreaker.flag == true` AND the dealbreaker reason cites infrastructure (a daemon, service, queue, cluster, pipeline, database, mesh, cache, replica, or similar noun), that infrastructure MUST appear in `ENV_BLOCK`. If the dealbreaker names something absent from the env block, re-dispatch ONCE with: `"Your dealbreaker cited <NAMED_INFRA> which is not in the Available Infrastructure block. Dealbreakers must be grounded in listed infrastructure. Re-evaluate using only the env block."` If second response still hallucinates, record `error: "infra_grounding_fail"` and drop the cell.
+
+**Track conformance:**
+```
+SCHEMA_VIOLATIONS = count(cells where error in {"schema_fail", "convention_fail", "infra_grounding_fail"})
+SCHEMA_CONFORMANCE_RATE = (9 - SCHEMA_VIOLATIONS) / 9
+```
+
+If `SCHEMA_CONFORMANCE_RATE < 0.80`, surface a warning in the convergence report: prompt-only discipline is drifting on this problem. Carry the rate into §6f self-assessment.
+
+Valid results go in `RESULTS[cell_number]`. Mark: `TodoWrite([{id: "cell-N", status: "completed"}])`.
+
+Wait for all 9 agents to complete (including retries) before proceeding to synthesis.
 
 ---
 
@@ -493,6 +532,39 @@ Output as JSON:
 
 Parse the response. If valid: add as `"devil_advocate"` to the convergence report under the winner section. If malformed: skip silently. Mark: `TodoWrite([{id: "devil", status: "completed"}])`.
 
+**6d.7. Post-Matrix Falsification Test (NEW — addresses #104 L11)**
+
+Skip this step if the solo winner's `mechanism_novelty` is null or if `verdict_type` is `no_clear_winner` or `narrow_win`.
+
+The matrix-original Cell 8 (remix) and Cell 9 (contrarian) prompts may have nudged agents toward a specific mechanism via framing cues ("UserPromptSubmit hook", "blackboard"). Falsification re-dispatches those two cells with **neutral prompts stripped of mechanism hints** and compares the re-proposed mechanism against the original. This takes ~$0.10 and returns one of three verdicts — `strong`, `framing_dependent`, or `falsified` — that qualify the winner's claim (addresses #104 L5a vs L5b split).
+
+**Procedure:**
+
+1. Construct neutral prompts for Cell 8 and Cell 9 that:
+   - Use the same `BRIEF` and `ENV_BLOCK` as the original run.
+   - REMOVE any mechanism-specific vocabulary from the Cell 8 and Cell 9 assignment text (e.g., if the original Cell 8 said "combine via UserPromptSubmit hook auto-inject", rewrite as "propose a hybrid that outperforms all three options; describe its mechanism in one sentence without naming any specific implementation primitive").
+   - Cell 9 neutral: "challenge the framing; propose a fundamentally different approach; describe your mechanism in one sentence without reusing vocabulary from the original options."
+2. Dispatch the two neutral cells (Haiku, `allowed-tools: []`). Collect each cell's `mechanism_novelty` string.
+3. **Classify the relationship** between the original winner mechanism and the neutral probes, using your judgment (synthesis-side, not delegated):
+   - **`strong`** — both probes converge on the same mechanism CATEGORY AND the same SPECIFIC implementation as the original winner. The winner's mechanism survives framing strip.
+   - **`framing_dependent`** — probes converge on the same CATEGORY (e.g., both still propose "hook-based injection") but a DIFFERENT SPECIFIC implementation (e.g., PostToolUse + sentinel file instead of UserPromptSubmit auto-inject). The winner's category is robust; the specific implementation was nudged by framing.
+   - **`falsified`** — probes converge on a DIFFERENT CATEGORY entirely (e.g., both propose passive-pull / blackboard instead of hook-based). The original winner was likely a framing artifact.
+4. Record as `post_matrix_falsification` in the convergence report and structured JSON:
+   ```json
+   "post_matrix_falsification": {
+     "verdict": "strong | framing_dependent | falsified",
+     "probe_a_mechanism": "<one-line mechanism from Cell 8 neutral>",
+     "probe_b_mechanism": "<one-line mechanism from Cell 9 neutral>",
+     "original_winner_mechanism": "<original winner mechanism_novelty>"
+   }
+   ```
+5. **Consequence for the winner's standing:**
+   - `strong` → ship with full confidence.
+   - `framing_dependent` → ship the mechanism CATEGORY; treat the specific as one implementation choice. Flag in the `conditions` section of the recommended design that other specifics within the category are viable.
+   - `falsified` → downgrade `verdict_type` to `no_clear_winner`. Surface the probes' alternative category as the likely correct direction. Do NOT ship the original winner without re-running the matrix with revised options.
+
+Mark: `TodoWrite([{id: "falsification", status: "completed"}])`.
+
 **6d.6. Brief Mode Output (`--brief`)**
 
 If `brief_mode` is true, replace the full report (6a–6d) with this compact block and skip 6e:
@@ -573,7 +645,14 @@ After the human-readable report, output the full structured data:
     "recommended_improvements": ["<non-blocking insights worth carrying forward>"]
   },
   "errors": <count of malformed agent outputs>,
+  "schema_conformance_rate": <(9 - schema_violations) / 9>,
   "confidence_margin": <solo winner composite - solo runner-up composite>,
+  "post_matrix_falsification": {
+    "verdict": "<strong | framing_dependent | falsified>",
+    "probe_a_mechanism": "<Cell 8 neutral mechanism>",
+    "probe_b_mechanism": "<Cell 9 neutral mechanism>",
+    "original_winner_mechanism": "<winner's mechanism_novelty>"
+  },
   "devil_advocate": {
     "challenge": "<failure mode of the solo winner>",
     "evidence": "<specific detail>",
@@ -728,6 +807,8 @@ The `convergence` object from the structured JSON output (step 6e), plus `devil_
   "verdict_type": "<go|conditional|no_clear_winner|narrow_win>",
   "confidence_margin": <value>,
   "devil_advocate": { <devil_advocate object or null> },
+  "post_matrix_falsification": { <falsification object or null> },
+  "schema_conformance_rate": <rate>,
   "conditions": [...],
   "reasoning": "...",
   "top_insights": [...],
