@@ -1,13 +1,13 @@
 # Null-Model Validation of Idea-Matrix — Preregistered Protocol
 
-**Version:** 8.0 (2026-04-16)
+**Version:** 9.0 (2026-04-16)
 **Status:** awaiting execution (budget-gated to post-reset)
 **Budget estimate:** ~$8-9, 3-5h
 **Previous versions:**
-- v1-v6 (commits c6245ad, c9ffd33, 25b35e4, 478e861, 41b5035, af6fd4a) — see §11.
-- v7 (commit c9285d8) — addressed round-7. Codex round-8 then identified one remaining high-severity issue: §7 (Analysis) H2 was paraphrased rather than mirrored verbatim from §1. Same dataset could be scored two different ways depending on which section the analyst followed.
+- v1-v7 (commits c6245ad, c9ffd33, 25b35e4, 478e861, 41b5035, af6fd4a, c9285d8) — see §11.
+- v8 (commit 1245903) — addressed round-8. Codex round-9 then identified two remaining high-severity issues: (a) §3.1's "any drop in 3-grid → H2 auto-fail" sentence still conflicted with §1/§7's "drop invalidated reruns from list, fail only if empty or no unique mode" — same data could pass under §§1/7 and fail under §3.1; (b) under the §1/§7 procedure, Sonnet or Opus could produce a "unique modal winner" from a single surviving rerun (out of 3), since H7's representativeness gate applied only to 20-rerun main runs, not to 3-rerun H2 grids.
 
-v8 addresses it by collapsing H2 into a single literal procedure shared between §1 and §7. Changes summarized in §11.
+v9 unifies all three sections on a single rule with explicit asymmetric sample-size handling. Changes summarized in §11.
 
 **Motivation:** Codex round-2 adversarial review identified "absence of null model" as the single strongest objection to the 11 lessons from 2026-04-15 matrix experiments. Issue #105 added two more: scoring discipline cannot be enforced by prompt alone; evaluation without codebase infrastructure context produces false dealbreakers. A validation protocol that ignores either is itself invalid.
 
@@ -28,13 +28,13 @@ Each hypothesis has (a) a single pre-committed statistical test, (b) a single pr
 **H2 (inter-model winner-identity agreement):** Sonnet and Opus identify the same winning *cell* as Haiku under the same blind neutral prompt.
 - **Prerequisite:** H6 AND H7 pass for the domain (composites must be comparable). If either fails for a domain, H2 is auto-FAILED for that domain (not skipped, not analyzed).
 - **Rerun-level winner extraction:** same as H1 above — highest composite, ties within 0.001 = no winner for that rerun.
+- **Sample-size floor (v9 fix for round-9 finding):** because Sonnet and Opus only have 3 reruns each, the modal-winner test is too fragile to tolerate any partial loss. **Any rerun in a Sonnet or Opus 3-grid that is invalidated (per §3.1) OR has no rerun-level winner (per the tie rule above) makes that entire 3-grid unusable, and H2 auto-fails for that model on that domain.** This restores the v6 strict-grid rule and unifies it with §3.1. Haiku does NOT use this floor (it has 20 reruns; the H1/H7 thresholds already protect representativeness there) — Haiku's modal is computed over its valid-with-winner reruns per the procedure below.
 - **Test (mirrored verbatim in §7):**
-  1. For each model (Haiku, Sonnet, Opus), take only the **valid reruns** (per §3.1 invalidation rule).
-  2. Among valid reruns, build the list of rerun-level winners (excluding "no winner" reruns — they are absent, neither contributing to nor failing the modal computation by themselves).
-  3. Identify the **unique modal winner cell** across that list. If the list is empty OR there is no unique mode, H2 auto-fails for that model on that domain.
-  4. Pass H2 for the domain if all three models yielded a unique modal winner AND Sonnet-modal == Haiku-modal AND Opus-modal == Haiku-modal.
+  1. **Sonnet and Opus:** verify all 3 reruns are valid AND each has a rerun-level winner. If any rerun is invalidated or has no winner, H2 auto-fails for that model on that domain. Otherwise, identify the unique modal winner across all 3 reruns. If no unique mode, H2 auto-fails for that model.
+  2. **Haiku:** take valid reruns only (per §3.1); build the list of rerun-level winners (excluding "no winner" reruns); identify the unique modal winner across that list. If the list is empty OR there is no unique mode, H2 auto-fails for the domain.
+  3. Pass H2 for the domain if Haiku, Sonnet, and Opus all yielded a unique modal winner AND Sonnet-modal == Haiku-modal AND Opus-modal == Haiku-modal.
 - **Threshold:** pass for ≥2 of 3 real domains.
-- **v5/v6/v7/v8 honesty note:** v3-v4 used single-cell design unable to test winner identity. v5 ran full grid. v6 added modal-aggregate tie semantics. v7 added rerun-level tie semantics. v8 (this version) makes the §7 mirror verbatim — earlier versions had §7 paraphrasing the rule, leaving scoring discretion. Now §1 and §7 use literally the same procedure.
+- **Honesty note:** v3-v4 used single-cell design unable to test winner identity. v5 ran full grid. v6-v8 progressively tightened tie/invalidation semantics. v9 unifies the §3.1 strict-grid rule with the §1/§7 procedure for Sonnet/Opus while keeping Haiku's procedure (20-rerun, drop invalid/tied) for the larger sample. Asymmetric by sample size, justified by statistical fragility of n=3.
 
 **H3 (mechanism category is not uniform):** Empirical distribution of blind-classified winning categories is not consistent with uniform 1/4 draw.
 - **Test:** exact binomial (scipy.stats.binomtest) on target-category frequency vs p₀=0.25, one test per real domain.
@@ -334,7 +334,7 @@ H7_rate = valid_reruns       / total_reruns             # rerun-level perspectiv
 
 The two metrics measure different constructs: H6 = "do individual cells obey the schema?", H7 = "are full reruns useful as analysis units?". They can disagree, and that disagreement is informative — it's why both gate H1/H2/H3.
 
-**H2 specific note:** the same invalidation rule applies to Sonnet and Opus 3-grids. A single dropped cell in any of the 3 reruns of one model on one domain → that grid is invalidated → H2 auto-fails for that model on that domain.
+**H2 specific note (v9 — aligned with §1/§7):** Sonnet and Opus 3-grids are subject to a strict sample-size floor: any invalidated rerun OR any rerun with no winner (per the §1 tie rule) makes the entire 3-grid unusable, and H2 auto-fails for that model on that domain. Haiku's 20-rerun grid uses drop-and-aggregate (drop invalidated reruns, drop no-winner reruns from the modal computation, fail only if the remaining list is empty or has no unique mode). The asymmetry is intentional and matches §1/§7 verbatim.
 
 ---
 
@@ -392,15 +392,13 @@ Exact decision rules:
 
 - **H1:** for each of D1, D2, D3 where both H6 and H7 passed, identify each valid rerun's winner cell (highest composite; ties = non-target). Compute `target_count = count(valid reruns where winner's blind-classified category == target)`. Denominator is always 20 (invalidated reruns count as non-target). Pass H1 if `target_count ≥ 14` for at least 2 of 3 domains.
 
-- **H2:** for each of D1, D2, D3 where both H6 and H7 passed, apply the unified winner extraction from §1 (rerun-level winner = highest composite; ≥2 cells within 0.001 of top = no winner for that rerun) to all reruns of all three models on this domain. Then for each model:
-  1. Take only the **valid reruns** (per §3.1 invalidation rule).
-  2. Among valid reruns, build the list of rerun-level winners (excluding "no winner" reruns from this list — they neither contribute to nor fail the model's modal computation by themselves; they are simply absent).
-  3. Identify the **unique modal winner cell** across that list. If the list is empty (all valid reruns were tied "no winner") OR if there is no unique mode (multiple cells tied at the top frequency), H2 auto-fails for that model on that domain.
-  4. Apply the same procedure to Haiku (using its 20 reruns), Sonnet (3 reruns), and Opus (3 reruns).
-- Pass H2 for the domain if Haiku, Sonnet, and Opus all yielded a unique modal winner AND Sonnet's modal == Haiku's modal AND Opus's modal == Haiku's modal.
+- **H2:** for each of D1, D2, D3 where both H6 and H7 passed, apply the unified winner extraction from §1 (rerun-level winner = highest composite; ≥2 cells within 0.001 of top = no winner for that rerun) to all reruns of all three models on this domain. Then:
+  1. **Sonnet and Opus (strict grid, sample-size floor):** verify all 3 reruns are valid (per §3.1 invalidation rule) AND each rerun has a rerun-level winner (per the tie rule). If any rerun is invalidated or has no winner, H2 auto-fails for that model on that domain. Otherwise, identify the unique modal winner across all 3 reruns. If no unique mode, H2 auto-fails for that model.
+  2. **Haiku (drop-and-aggregate):** take only valid reruns; build the list of rerun-level winners (excluding "no winner" reruns); identify the unique modal winner across that list. If the list is empty OR there is no unique mode, H2 auto-fails for the domain.
+  3. Pass H2 for the domain if Haiku, Sonnet, and Opus all yielded a unique modal winner AND Sonnet-modal == Haiku-modal AND Opus-modal == Haiku-modal.
 - **H2 final pass:** Pass for ≥2 of 3 real domains.
 
-This is the single rule shared between §1 and §7. No alternative interpretation exists.
+This is the single rule shared between §1 and §7 and §3.1. No alternative interpretation exists. Asymmetric handling between Haiku (n=20, drop tolerated) and Sonnet/Opus (n=3, all-or-nothing) is justified by statistical fragility of small grids.
 
 - **H3:** for each of D1, D2, D3 where both H6 and H7 passed, run `scipy.stats.binomtest(target_count, 20, 0.25, alternative='greater')` using the same `target_count` from H1. Pass if p < 0.0125 for at least 2 of 3 domains.
 
@@ -455,7 +453,16 @@ On abort, write `docs/null-model-validation-abort.md`: trigger, partial data, wh
 
 ## 11. Changelog
 
-### v7 → v8 (this version)
+### v8 → v9 (this version)
+
+Addresses Codex round-9 review of v8:
+
+| # | v8 flaw | v9 fix |
+|---|---------|--------|
+| 23 | §3.1 H2 note ("any drop in 3-grid → H2 auto-fail") still conflicted with §1/§7's "drop invalid/no-winner reruns from list, fail only if empty or no unique mode". Same data could pass under §§1/7 and fail under §3.1. | §1, §7, and §3.1 H2 sections all rewritten to share the same numbered procedure with explicit asymmetric handling: Sonnet/Opus use strict grid (any drop or no-winner = H2 fail for that model on domain); Haiku uses drop-and-aggregate (n=20 tolerates drops). All three sections describe the same procedure. |
+| 24 | H2 could pass on a single surviving Sonnet or Opus rerun (out of 3) because invalidated and tied reruns were simply omitted from the modal computation. H7's ≥80% representativeness gate applied only to 20-rerun main runs, not to 3-rerun H2 grids. | §1 H2 introduces a sample-size floor explicitly for Sonnet/Opus 3-grids: any invalidated rerun or no-winner rerun makes the entire grid unusable. This is the conservative v6 rule, restored with explicit justification (n=3 statistical fragility). Haiku retains drop-and-aggregate because its n=20 is large enough and H1/H7 protect representativeness there. |
+
+### v7 → v8 (commit 1245903)
 
 Addresses Codex round-8 review of v7:
 
