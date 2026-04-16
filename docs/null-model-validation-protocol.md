@@ -468,7 +468,7 @@ v10.1 synchronizes §3.1 with the §1/§7 rule (16-winner-bearing floor) and is 
 
 | # | v10 ambiguity | v10.1 amendment |
 |---|---------------|-----------------|
-| 27 | §3.1 carried stale v9 Haiku H2 description (no 16-winner floor) while §1/§7 had the v10 rule. An analyst reading only §3.1 could derive different H2 outcomes than one reading §1/§7. | §3.1 rewritten to match §1/§7 exactly (16-winner-bearing floor, 80% threshold). Commit: `d58a2e9` (§3.1 fix), `4f888ce` (this metadata bump). |
+| 27 | §3.1 carried stale v9 Haiku H2 description (no 16-winner floor) while §1/§7 had the v10 rule. An analyst reading only §3.1 could derive different H2 outcomes than one reading §1/§7. | §3.1 rewritten to match §1/§7 exactly (16-winner-bearing floor, 80% threshold). Commits: `d58a2e9` (§3.1 fix), `4f888ce` (metadata bump), `ddca208` (reclassification as amendment). Full audit trail in §8 Amendment 1. |
 
 ### v9 → v10 (commit e86205c)
 
