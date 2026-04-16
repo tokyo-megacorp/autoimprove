@@ -425,7 +425,12 @@ Any change post-execution-start requires:
 3. Note affected hypotheses.
 4. **Amendment counts as failure for any hypothesis where it relaxes a threshold or substitutes a test.** Blocks move-the-goalposts.
 
-No amendments yet.
+### Amendment 1 (2026-04-16, pre-execution, commits d58a2e9 + 4f888ce + ddca208)
+
+**Affected procedure:** H2 Haiku scoring path in §3.1.
+**Justification:** v10 (commit e86205c) introduced the 16-winner-bearing floor in §1/§7 but left a stale v9-era paragraph in §3.1 that described Haiku H2 as drop-and-aggregate without the floor. An analyst following §3.1 alone could derive a different H2 pass/fail than one following §1/§7. This is execution-significant ambiguity.
+**Resolution:** §3.1 paragraph synchronized with §1/§7 (commit d58a2e9). Metadata bumped to v10.1 (commit 4f888ce). Reclassified from wording-only to protocol amendment (commit ddca208).
+**Hypotheses affected:** H2. No threshold changed; no new test introduced. The operative rule in §1/§7 was already correct — the amendment resolved the stale §3.1 description to match it.
 
 ---
 
