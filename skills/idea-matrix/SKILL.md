@@ -86,7 +86,12 @@ From the options list, generate exactly 9 exploration cells. The matrix is **opt
 - Cell 8: "Best-of-breed remix" — the agent proposes its own hybrid from the best parts of each option
 - Cell 9: "Contrarian approach" — the agent challenges all 3 options and proposes something fundamentally different
 
-Store as `CELLS[1..9]`, each with a label and assignment description.
+Store as `CELLS[1..9]`, each with:
+- `label`: the cell's identifier (e.g., "A", "A+B", "D")
+- `description`: the assignment string
+- `type`: one of `"solo"` (cells 1-3), `"combo"` (cells 4-7), or `"alt"` (cells 8-9)
+
+The `type` classification is load-bearing — winner determination in step 6c uses **solo cells only** to prevent structural bias. See `docs/null-model-validation-abort.md` (2026-04-16) for the empirical rationale.
 
 **Initialize progress tracking:**
 
@@ -324,19 +329,25 @@ Analyze all 9 results and produce a convergence report. This is YOUR analysis �
 
 **6a. Build the Score Matrix**
 
-Present the full 3x3 grid with numerical scores:
+Present the full 3x3 grid with numerical scores, grouped by cell type so readers can see solo vs combo vs alt at a glance:
 
 ```
 ## Idea Matrix — {PROBLEM}
 
-| Cell | Option | Feas. | Risk | Synergy | Cost | Avg | Dealbreaker | Verdict |
-|------|--------|-------|------|---------|------|-----|-------------|---------|
-| 1 | A alone | 4 | 5 | 3 | 4 | 4.0 | -- | ... |
-| 2 | B alone | 3 | 3 | 3 | 3 | 3.0 | -- | ... |
-| ... | ... | ... | ... | ... | ... | ... | ... | ... |
+| Cell | Type | Option | Feas. | Risk | Synergy | Cost | Avg | Dealbreaker | Verdict |
+|------|------|--------|-------|------|---------|------|-----|-------------|---------|
+| 1 | solo | A alone | 4 | 5 | 3 | 4 | 4.0 | -- | ... |
+| 2 | solo | B alone | 3 | 3 | 3 | 3 | 3.0 | -- | ... |
+| 3 | solo | C alone | ... | ... | ... | ... | ... | ... | ... |
+| 4 | combo | A+B | ... | ... | ... | ... | ... | ... | ... |
+| 5 | combo | A+C | ... | ... | ... | ... | ... | ... | ... |
+| 6 | combo | B+C | ... | ... | ... | ... | ... | ... | ... |
+| 7 | combo | A+B+C | ... | ... | ... | ... | ... | ... | ... |
+| 8 | alt | Remix | ... | ... | ... | ... | ... | ... | ... |
+| 9 | alt | Contrarian | ... | ... | ... | ... | ... | ... | ... |
 ```
 
-**Avg** = mean of the 4 scores. Cells with `dealbreaker: true` are flagged regardless of scores.
+**Avg** = mean of the 4 scores. Cells with `dealbreaker: true` are flagged regardless of scores. Remember: only **solo** cells compete for the authoritative winner — combo and alt avgs are design insight (see §6c).
 
 **6b. Cross-Cutting Dimension View**
 
@@ -355,65 +366,94 @@ After the per-cell matrix, present aggregate scores BY DIMENSION across all 9 ce
 
 This reveals which dimensions are consistent across options (all cells score similar risk) versus divergent (feasibility varies wildly), and which dimensions are the weakest overall.
 
-**6c. Identify Convergence**
+**6c. Identify Convergence (separated rankings by cell type)**
 
-Rank cells by composite score (average of all 4 dimensions). Compute the **confidence margin** = winner composite − runner-up composite.
+**Why separated rankings:** Null-model validation on a deliberately flat synthetic control (D0, 2026-04-16) found that combo cells won 14/16 valid reruns with p = 2.95e-05 — driven by the `synergy_potential` dimension tautologically favoring wider options. Full report: `docs/null-model-validation-abort.md`. To prevent structural bias from picking the winner, composites are now ranked **within each cell type separately**, and the authoritative winner comes from the solo pool only.
 
-- **margin ≥ 0.5** → clear winner, proceed normally
-- **0.3 ≤ margin < 0.5** → moderate confidence — note it in the report
-- **margin < 0.3** → **narrow win** — do NOT declare a single winner. Present top 2 as tied candidates with the note: "Margin too small to distinguish — consider running the matrix with sharper option differentiation or additional constraints." Set `verdict_type: "narrow_win"`.
+**Compute three separate rankings:**
+
+1. **Solo ranking** (cells where `type == "solo"`, i.e., cells 1-3): the authoritative pool. The solo winner feeds `convergence.winner`, `recommendation`, brief-mode output, and devil's advocate.
+2. **Combo ranking** (cells where `type == "combo"`, i.e., cells 4-7): design insight only. Surface the top combo as "the strongest hybrid" — never as the winner.
+3. **Alt ranking** (cells where `type == "alt"`, i.e., cells 8-9): design insight only. Surface the top alt as "the strongest alternative" — never as the winner.
+
+Compute the **solo confidence margin** = solo winner composite − solo runner-up composite.
+
+- **solo margin ≥ 0.5** → clear winner, proceed normally
+- **0.3 ≤ solo margin < 0.5** → moderate confidence — note it in the report
+- **solo margin < 0.3** → **narrow solo win** — do NOT declare a single winner. Present the top 2 solos as tied candidates with the note: "Margin too small to distinguish — consider running the matrix with sharper option differentiation or additional constraints." Set `verdict_type: "narrow_win"`.
 
 Then analyze:
-- **Top scorer**: Which cell has the highest composite? Is it a solo, hybrid, or creative option?
-- **Dealbreaker filter**: Eliminate any cells flagged as dealbreakers
-- **Score band distribution**: Count cells by band — strong (4-5 avg), neutral (3 avg), weak (1-2 avg).
-- **Cluster analysis**: Do hybrid cells score consistently higher than solos? Does this suggest combination is the right path?
-- **Top insights**: Cherry-pick the 3-5 most impactful surprises across all 9 cells. These are the findings that change the trade-off calculus.
-- **Risk patterns**: Are there risks that appear across multiple cells?
+- **Solo winner**: the highest-composite solo cell, after dealbreaker filter. This is the authoritative recommendation.
+- **Dealbreaker filter (solo)**: eliminate any solo cells flagged as dealbreakers. If all 3 solos have dealbreakers, set `verdict_type: "no_clear_winner"` and recommend revisiting options.
+- **Score band distribution (solo pool)**: count solo cells by band — strong (4-5 avg), neutral (3 avg), weak (1-2 avg).
+- **Combination insight**: if the top combo's composite exceeds the solo winner's composite, report this as evidence that the options compose better than they stand alone. If the top combo includes the solo winner (e.g., solo winner A, top combo A+B), label it a **natural extension** — implement solo first, layer the combination after. If not (e.g., solo winner A, top combo B+C), label it an **alternative angle** worth documenting but not automatically pursued.
+- **Alternative insight**: if the top alt's composite exceeds the solo winner's composite, report this as a framing challenge — the alt surfaced a reframing worth considering. Surface the alt's thesis verbatim so the user can judge whether to pivot.
+- **Top insights**: cherry-pick the 3-5 most impactful surprises across **all 9 cells** (all types). These feed design thinking regardless of which ranking they came from.
+- **Risk patterns**: are there risks that appear across multiple cells (any type)?
 
 **§6c-i — Poor-Differentiation Protocol**
 
-If 7 or more of the 9 cells land in the neutral band (avg 2.5–3.5), the matrix has failed to differentiate the options. **Do not fabricate a winner.** Instead:
+Scope: this check applies to the **solo pool only** (cells 1-3). Combo and alt cells serve as design insight — their flat distribution is expected when the base options already cover the design space.
+
+If all 3 solo cells land in the neutral band (avg 2.5–3.5), the matrix has failed to differentiate the authoritative options. **Do not fabricate a winner.** Instead:
 
 | Diagnosis | Signal | Recovery Action |
 |-----------|--------|-----------------|
-| Options are too similar | Solos score nearly identically | Stop. Ask the user to replace 1-2 options with genuinely different approaches. |
+| Options are too similar | All 3 solos score nearly identically | Stop. Ask the user to replace 1-2 options with genuinely different approaches. |
 | Problem statement is too vague | Agents score based on different assumptions | Stop. Ask the user to clarify the specific decision constraint (e.g., "optimize for X given constraint Y"). |
-| Agent score collapse | Most cells return 3 across all 4 dimensions | Re-run cells 8 and 9 with explicit instruction to be contrarian and differentiate. |
+| Agent score collapse | Solo cells return 3 across all 4 dimensions | Re-run solo cells with stricter differentiation instruction. |
 
 When this protocol triggers:
 - Set `verdict_type: "no_clear_winner"` in the JSON output.
 - Write the Recommended Design section as: "**No winner emerged.** [Diagnosis]. [Recovery action]."
-- Do NOT rank options from 1–9 as if a winner exists — this misleads the user.
+- Do NOT rank solos from 1–3 as if a winner exists — this misleads the user.
+- Combo and alt rankings may still be reported as insight, clearly labeled as "no authoritative solo winner was identified."
 
 **6d. Recommended Design**
 
 ```
 ### Recommended Design
 
-**Winner:** {label} — {one-line summary} (score: {avg}/5)
+**Winner (solo):** {solo_label} — {one-line summary} (composite: {avg}/5)
 **Verdict:** Go | Go with conditions | No clear winner
 
-**Why it emerged:** {2-3 sentences citing specific scores and patterns across the matrix}
+**Why it emerged:** {2-3 sentences citing specific scores within the solo pool}
 
 **Conditions** (if "Go with conditions" — these must be true for the recommended design to succeed):
 1. {specific condition from risk scores or dealbreaker analysis}
 2. {specific condition from surprise insights}
 
-**Dealbreakers avoided:** {cells eliminated and why}
+**Dealbreakers avoided (solo pool):** {solo cells eliminated and why}
 
-**Top insights across all cells:**
+### Combination insight (non-authoritative)
+**Top combo:** {combo_label} (composite: {avg}/5)
+{IF top combo composite > solo winner composite:}
+  The combination outscores the solo winner by {diff}.
+  {IF combo contains solo winner: "Natural extension — implement the solo winner first, layer this combination after."}
+  {IF combo does NOT contain solo winner: "Alternative angle — documented as a separate path, not auto-pursued."}
+{ELSE:}
+  Solo dominance confirmed — no combination surpassed the standalone recommendation.
+
+### Alternative insight (non-authoritative)
+**Top alt:** {alt_label} (composite: {avg}/5)
+{IF top alt composite > solo winner composite:}
+  The alternative surfaces a framing challenge: {alt thesis verbatim}.
+  Consider whether the problem should be reframed before committing to the solo winner.
+{ELSE:}
+  No alternative outperformed the solo winner — the problem framing holds up.
+
+**Top insights across all 9 cells (all types):**
 - {most impactful surprise from any cell}
 - {second most impactful}
 - {third}
 
-**First step:** {recommendation field from the winning cell}
+**First step:** {recommendation field from the solo winner cell}
 
 **Required mitigations** (blocking — must address before proceeding):
-- {risk or conflict from non-winning cells that applies to the winner}
+- {risk or conflict from non-winning cells that applies to the solo winner}
 
 **Recommended improvements** (non-blocking — worth carrying forward):
-- {high-scoring aspect from non-winning cells that would strengthen the winner}
+- {high-scoring aspect from non-winning cells that would strengthen the solo winner}
 ```
 
 **6d.5. Devil's Advocate Challenge**
@@ -460,17 +500,19 @@ If `brief_mode` is true, replace the full report (6a–6d) with this compact blo
 ```
 ## Idea Matrix — {PROBLEM}
 
-Winner: {WINNER_LABEL} — {WINNER_DESCRIPTION}
-Confidence: {clear|moderate|narrow}  (margin: {confidence_margin:.2f})
-Why it won: {2 sentences from synthesis — cite specific score patterns}
+Winner (solo): {SOLO_WINNER_LABEL} — {SOLO_WINNER_DESCRIPTION}  (composite: {solo_winner_composite}/5)
+Confidence: {clear|moderate|narrow}  (solo margin: {solo_confidence_margin:.2f})
+Why it won: {2 sentences from synthesis — cite specific score patterns within solo pool}
 Key risk: {devil_advocate.challenge or "none identified"}
 {If conditions: "Conditions: {list}"}
-First step: {recommendation from winning cell}
+Top combo: {TOP_COMBO_LABEL} ({top_combo_composite}/5){" — beats solo winner" if top_combo > solo_winner else ""}
+Top alt: {TOP_ALT_LABEL} ({top_alt_composite}/5){" — beats solo winner" if top_alt > solo_winner else ""}
+First step: {recommendation from solo winner cell}
 ```
 
-**Narrow win exception:** if `verdict_type == "narrow_win"`, also include:
+**Narrow solo win exception:** if `verdict_type == "narrow_win"`, also include:
 ```
-Runner-up: {RUNNER_UP_LABEL} — {RUNNER_UP_DESCRIPTION}  (margin: {margin:.2f} — too close to dismiss)
+Solo runner-up: {SOLO_RUNNER_UP_LABEL} — {SOLO_RUNNER_UP_DESCRIPTION}  (solo margin: {margin:.2f} — too close to dismiss)
 ```
 
 This format is optimized for pipeline handoff (e.g., to `/adversarial-review`): the reviewer gets the winner, the pre-identified risk, and the confidence level without wading through 9 cells of scores.
@@ -483,14 +525,16 @@ After the human-readable report, output the full structured data:
 {
   "problem": "<problem statement>",
   "options": [<OPTIONS array>],
-  "cells": [<RESULTS array, all 9 with scores>],
-  "ranking": [
-    { "cell": <N>, "label": "<label>", "composite": <avg>, "dealbreaker": <bool> }
-  ],
-  "by_score_band": {
-    "strong": <count of cells with avg >= 4>,
-    "neutral": <count of cells with avg >= 3 and < 4>,
-    "weak": <count of cells with avg < 3>
+  "cells": [<RESULTS array, all 9 with scores AND "type" field: "solo"|"combo"|"alt">],
+  "rankings": {
+    "solo": [{ "cell": <N>, "label": "<label>", "composite": <avg>, "dealbreaker": <bool> }],
+    "combo": [{ "cell": <N>, "label": "<label>", "composite": <avg>, "dealbreaker": <bool> }],
+    "alt": [{ "cell": <N>, "label": "<label>", "composite": <avg>, "dealbreaker": <bool> }]
+  },
+  "by_score_band_solo": {
+    "strong": <count of solo cells with avg >= 4>,
+    "neutral": <count of solo cells with avg >= 3 and < 4>,
+    "weak": <count of solo cells with avg < 3>
   },
   "dimension_aggregates": {
     "feasibility": { "avg": <N>, "min": <N>, "max": <N> },
@@ -499,27 +543,46 @@ After the human-readable report, output the full structured data:
     "implementation_cost": { "avg": <N>, "min": <N>, "max": <N> }
   },
   "convergence": {
-    "winner": "<cell label>",
-    "winner_cell": <cell number>,
-    "winner_composite": <avg score>,
+    "winner": "<solo winner label>",
+    "winner_cell": <solo winner cell number>,
+    "winner_composite": <solo winner composite>,
+    "winner_type": "solo",
+    "top_combo": {
+      "cell": <N>,
+      "label": "<label>",
+      "composite": <avg>,
+      "beats_solo": <bool>,
+      "relation": "natural_extension | alternative_angle | below_solo",
+      "thesis": "<combo's thesis>"
+    },
+    "top_alt": {
+      "cell": <N>,
+      "label": "<label>",
+      "composite": <avg>,
+      "beats_solo": <bool>,
+      "relation": "framing_challenge | below_solo",
+      "thesis": "<alt's thesis>"
+    },
     "verdict_type": "go | conditional | no_clear_winner | narrow_win",
-    "conditions": ["<what must be true for the winner to succeed>"],
-    "reasoning": "<why this emerged — cite scores>",
-    "dealbreakers": [{ "cell": <N>, "reason": "<why>" }],
+    "conditions": ["<what must be true for the solo winner to succeed>"],
+    "reasoning": "<why the solo winner emerged — cite scores within solo pool>",
+    "dealbreakers_solo": [{ "cell": <N>, "reason": "<why>" }],
     "top_insights": ["<most impactful surprises across all 9 cells, max 5>"],
-    "risks": ["<key risks from matrix>"],
-    "required_mitigations": ["<blocking risks/conflicts from non-winning cells that apply to the winner>"],
-    "recommended_improvements": ["<non-blocking insights from non-winning cells worth carrying forward>"]
+    "risks": ["<key risks from matrix (any cell type)>"],
+    "required_mitigations": ["<blocking risks/conflicts applying to the solo winner>"],
+    "recommended_improvements": ["<non-blocking insights worth carrying forward>"]
   },
   "errors": <count of malformed agent outputs>,
-  "confidence_margin": <winner_composite - runner_up_composite>,
+  "confidence_margin": <solo winner composite - solo runner-up composite>,
   "devil_advocate": {
-    "challenge": "<failure mode>",
+    "challenge": "<failure mode of the solo winner>",
     "evidence": "<specific detail>",
     "mitigation": "<first step>"
   }
 }
 ```
+
+**Schema note:** the `winner` field is always the solo winner. Consumers (adversarial-review, brief handoff, etc.) should read `winner` and `winner_composite` for the authoritative recommendation, and `top_combo`/`top_alt` for design insight only. The legacy single `ranking` array was removed — downstream code should migrate to the three separated `rankings`.
 
 ---
 
@@ -556,13 +619,16 @@ If yes (or Enter), build the DATA object and open a self-contained HTML dashboar
 const DATA = {
   problem:           "<PROBLEM>",
   verdict_type:      "<clear|moderate|narrow_win|no_clear_winner>",
-  confidence_margin: <winner_composite - runner_up_composite>,
-  winner: { cell: <N>, label: "<label>", avg: <score> },
-  runner_up: { cell: <N>, label: "<label>", avg: <score> },  // only for narrow_win
+  confidence_margin: <solo_winner_composite - solo_runner_up_composite>,
+  winner: { cell: <N>, label: "<label>", avg: <score>, type: "solo" },  // always solo
+  runner_up: { cell: <N>, label: "<label>", avg: <score>, type: "solo" },  // only for narrow_win, always solo
+  top_combo: { cell: <N>, label: "<label>", avg: <score>, beats_solo: <bool> },
+  top_alt:   { cell: <N>, label: "<label>", avg: <score>, beats_solo: <bool> },
 
   cells: [
     {
       cell:        <1-9>,
+      type:        "solo|combo|alt",            // NEW — used by the digest to group cells visually
       label:       "<plain-language label>",    // the intention-first label from TodoWrite
       avg:         <composite avg>,
       scores: {
@@ -708,6 +774,7 @@ After all writes complete (or are skipped on error), print:
 - **9 agents is the fixed grid.** The 3x3 structure (3 solo + 3 pairs + 1 trio + 2 wild) is the core design.
 - **Haiku only, no tools.** Agents reason about pre-digested context. The orchestrator does the codebase research.
 - **Scores enable objective comparison.** Numerical rubric eliminates ambiguity in prose-based assessments.
+- **Solo cells determine the winner.** Combo and alt cells provide design insight only — see §6c for the null-model rationale. Do NOT collapse the three rankings back into a single composite ranking.
 - **The convergence report is the deliverable.** Lead with the synthesis and recommendation, not the raw scores.
 - **Works standalone or during brainstorming.** Can be invoked via `/idea-matrix` at any point — enriches design discussions or produces standalone analysis.
 - **Visual digest is skipped in --brief mode.** Brief mode is a pipeline handoff — no interactive UI needed.
