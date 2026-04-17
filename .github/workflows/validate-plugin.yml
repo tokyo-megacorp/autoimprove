@@ -27,7 +27,7 @@ jobs:
     name: Validate plugin.json
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check plugin.json exists
         run: |
@@ -82,7 +82,7 @@ jobs:
     name: Validate component files
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Validate skill authoring hygiene
         run: |
@@ -138,7 +138,7 @@ jobs:
     name: Validate directory structure (anti-pattern check)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Ensure skills/ are NOT nested inside .claude-plugin/
         run: |
