@@ -2,6 +2,15 @@
 
 All notable changes to autoimprove are documented here.
 
+## [0.7.2] — 2026-04-17 — Fix B primacy bias + null-model v11
+
+### Added
+- `feat(idea-matrix)`: Fix B — option-order randomization per matrix run. Decorrelates option quality from presentation position (cell 1 no longer always evaluates "Option A"). `PERMUTATION` and `permutation_mapping` added to structured JSON and telemetry. Empirically validated: D0 p=0.38 (bias eliminated), D2 label distribution A:8 B:5 C:5 (balanced). Closes #106.
+- `docs(protocol)`: null-model validation protocol v11 — splits H6 into H6a (schema discipline) + H6b (product-name lexical discipline), tightens banned lists to product/library names only. Clean pre-registration for next execution cycle.
+
+### Fixed
+- `docs(abort)`: null-model v10.3 abort report — root cause analysis of D1/D3 catastrophic failure (banned-token gate conflated product names with domain concepts; H6 rates 28% and 24%). D0 and D2 validated cleanly.
+
 ## [0.7.1] — 2026-04-16 — idea-matrix falsification + schema enforcement
 
 ### Added
