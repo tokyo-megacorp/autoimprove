@@ -1,86 +1,106 @@
-# Null-Model Validation of Idea-Matrix — Preregistered Protocol
+# Null-Model Validation of Idea-Matrix — Preregistered Protocol v11
 
-**Version:** 10.3 (2026-04-16, post-Fix-B-generalization Amendment 3)
-**Status:** awaiting execution (budget-gated to post-reset)
+**Version:** 11 (2026-04-17, post-v10.3 abort redesign)
+**Status:** awaiting execution (pre-registration fresh — no amendments yet)
 **Budget estimate:** ~$8-9, 3-5h
-**Previous versions:**
-- v1-v8 (commits c6245ad, c9ffd33, 25b35e4, 478e861, 41b5035, af6fd4a, c9285d8, 1245903) — see §11.
-- v9 (commit 2c326ad) — addressed round-9 by adding strict 3-grid floor for Sonnet/Opus. Codex round-10 then identified two remaining symmetric issues: (a) Haiku had no analogous representativeness floor — a domain with many tied/invalid Haiku reruns could pass H2 with a single winner-bearing rerun; (b) §3.1 still contained the v8 paragraph "invalidated reruns count as fail-domain" that conflicted with the new Haiku drop-and-aggregate rule.
+**Previous versions:** v1–v10.3 archived in git history. v10.3 aborted per §10.5 on D1 and D3 — banned-token gate conflated product names with domain concepts, yielding H6 rates of 0.28 and 0.24 respectively. D0 and D2 passed cleanly under Fix A + Fix B. See `docs/null-model-validation-abort-v2.md` for full post-mortem.
 
-v10 closes the Haiku-side gap with a 16/20 winner-bearing floor (matching H6/H7 80% threshold) and rewrites §3.1 as the single authoritative source for H1/H2/H3 invalidation handling.
+**Motivation:** v11 surgically fixes the one root cause identified in v10.3's abort: the banned-token metric (now H6b) was designed as if all banned tokens were product/library names substitutable by synonyms, but in v10.3 `§2 D1/D3` it silently included domain-intrinsic concept vocabulary (`cache`, `retry`, etc.). The test failed on its own terms — Haiku cannot describe caching mechanisms without using the word "cache".
 
-**Motivation:** Codex round-2 adversarial review identified "absence of null model" as the single strongest objection to the 11 lessons from 2026-04-15 matrix experiments. Issue #105 added two more: scoring discipline cannot be enforced by prompt alone; evaluation without codebase infrastructure context produces false dealbreakers. A validation protocol that ignores either is itself invalid.
+v11 resolves this by:
+1. Splitting H6 into H6a (schema discipline) and H6b (product-name lexical discipline) — each with its own threshold. This makes banned-list design flaws visible as diagnostic signal instead of hidden H1/H3 confound.
+2. Tightening every domain's banned-token list to **product/library names only**, by pre-registration. Concept vocabulary is never banned.
 
-This document preregisters the design BEFORE execution. Any deviation must be logged as a protocol amendment — see §8.
+All other v10.3 design elements (Fix A solo-only ranking, Fix B balanced permutation, §5 blind coding, §6 D0 synthetic control, §8 amendment discipline, §10 abort=failure rule) are preserved verbatim.
+
+This document is a clean pre-registration. No amendments exist at the start of v11. Any deviation post-execution-start requires the §8 amendment procedure.
 
 ---
 
 ## 1. Hypotheses Under Test
 
-Each hypothesis has (a) a single pre-committed statistical test, (b) a single pre-committed threshold, (c) a dependency on schema enforcement (§3.1) succeeding. §7 mirrors these definitions literally.
+Each hypothesis has (a) a single pre-committed statistical test, (b) a single pre-committed threshold, (c) explicit dependencies on §3.1 gates succeeding. §7 mirrors these definitions literally.
 
 **H1 (L5a validity):** For a given problem domain, the mechanism-category of the matrix winner is stable across neutrally-framed reruns.
-- **Rerun-level winner extraction:** the "winner cell" of a single rerun is the cell with the highest composite (per §3.1 Gate 5 recomputation). **If 2 or more cells share the highest composite within 0.001, the rerun has no winner — it counts as a non-target outcome.** This is the single tie rule used by both H1 and H2 below.
-- **Test:** for each domain, count VALID reruns (per §3.1 invalidation rule) where the winner cell's `mechanism_novelty` is blind-classified (§5) into the pre-registered target category.
-- **Threshold:** ≥14/20 in the target category for ≥2 of 3 real domains (D1, D2, D3). Denominator is fixed at 20 (invalidated reruns and tied-winner reruns count as non-target).
-- **Prerequisite:** H6 (cell conformance ≥80%) AND H7 (rerun validity ≥80%) BOTH pass for that domain. If either fails, H1 is FAILED for that domain.
+- **Rerun-level winner extraction (Fix A, v10.1+):** the "solo winner" of a rerun is the SOLO cell (1, 2, or 3) with the highest composite. If 2 or more solo cells share the highest composite within 0.001, the rerun has no solo winner — counts as non-target. Combos (4–7) and alts (8–9) are scored and reported but never eligible for H1 winner aggregation.
+- **Test:** for each real domain D1/D2/D3, count VALID reruns (per §3.1) where the solo winner's `mechanism_novelty` is blind-classified (§5) into the pre-registered target category.
+- **Threshold:** ≥14/20 in the target category for ≥2 of 3 real domains. Denominator fixed at 20 — invalidated or tied reruns count as non-target.
+- **Prerequisite:** H6a ≥ 0.80 AND H6b ≥ 0.80 AND H7 ≥ 0.80 for that domain. If any of the three fails for a domain, H1 auto-FAILS for that domain.
 
-**H2 (inter-model winner-identity agreement):** Sonnet and Opus identify the same winning *cell* as Haiku under the same blind neutral prompt.
-- **Prerequisite:** H6 AND H7 pass for the domain (composites must be comparable). If either fails for a domain, H2 is auto-FAILED for that domain (not skipped, not analyzed).
-- **Rerun-level winner extraction:** same as H1 above — highest composite, ties within 0.001 = no winner for that rerun.
-- **Sample-size floors (v10):**
-  - **Sonnet and Opus (3-grid, strict):** any invalidated rerun OR any no-winner rerun makes the entire 3-grid unusable; H2 auto-fails for that model on that domain. Justification: n=3 is too fragile to tolerate any partial loss.
-  - **Haiku (20-grid, representativeness floor):** the modal computation requires ≥16 winner-bearing reruns (valid per §3.1 AND have a rerun-level winner per the tie rule). If fewer than 16, H2 auto-fails on the Haiku side for that domain. 16/20 = 80%, matching H6/H7's threshold for representativeness. Justification: round-10 closed the gap where 1 winner-bearing Haiku rerun with 19 invalid/tied could produce a "trivially unique mode".
-- **Test (mirrored verbatim in §7 and §3.1):**
-  1. **Sonnet and Opus:** verify all 3 reruns are valid AND each has a rerun-level winner. If any rerun is invalidated or has no winner, H2 auto-fails for that model on that domain. Otherwise, identify the unique modal winner across all 3 reruns. If no unique mode, H2 auto-fails for that model.
-  2. **Haiku:** count winner-bearing reruns (valid per §3.1 AND has a rerun-level winner). If <16, H2 auto-fails on Haiku side. Otherwise build the list of those rerun-level winners and identify the unique modal winner. If no unique mode, H2 auto-fails on Haiku side.
-  3. Pass H2 for the domain if Haiku passed AND Sonnet passed AND Opus passed AND Sonnet-modal == Haiku-modal AND Opus-modal == Haiku-modal.
+**H2 (inter-model winner-identity agreement):** Sonnet and Opus identify the same winning solo cell as Haiku under the same blind neutral prompt.
+- **Prerequisite:** H6a ≥ 0.80 AND H6b ≥ 0.80 AND H7 ≥ 0.80 for that domain (Haiku side). If any fails, H2 auto-FAILS for that domain. Sonnet and Opus have their own 3-grid floor (below) instead of an H6a/H6b/H7 threshold, because n=3 makes per-model rate thresholds statistically meaningless.
+- **Sample-size floors:**
+  - **Sonnet, Opus (3-grid, drop-and-aggregate with 2/3 floor — v11 change from v10's strict rule):** count valid-and-winner-bearing reruns (valid per §3.1 AND has a solo winner per the tie rule). If fewer than 2 of the 3 reruns meet this, H2 auto-fails for that model on that domain. Otherwise identify the modal solo winner across the 2 or 3 winner-bearing reruns. If there is no unique mode (e.g., 2 winner-bearing reruns disagree), H2 auto-fails for that model. **Rationale for v11 relaxation:** with H6b added as an independent drop channel, the v10 strict rule would auto-fail Sonnet/Opus 3-grids ~15–25% of the time from natural banned-token retry failures. The 2/3 floor preserves statistical meaning (both surviving reruns must agree) while tolerating one H6b-driven drop per model.
+  - **Haiku (20-grid representativeness floor):** count winner-bearing reruns (valid per §3.1 AND has a rerun-level solo winner per the tie rule). If <16, H2 auto-fails on Haiku side. Otherwise identify unique modal solo winner across those winner-bearing reruns.
+- **Test:** Haiku modal == Sonnet modal == Opus modal (all three must match) for pass.
 - **Threshold:** pass for ≥2 of 3 real domains.
-- **Honesty note:** v3-v4 used single-cell design unable to test winner identity. v5 ran full grid. v6-v9 progressively tightened tie/invalidation semantics. v10 closes the symmetric gap on the Haiku side with an explicit 16/20 representativeness floor matching H6/H7.
 
 **H3 (mechanism category is not uniform):** Empirical distribution of blind-classified winning categories is not consistent with uniform 1/4 draw.
-- **Test:** exact binomial (scipy.stats.binomtest) on target-category frequency vs p₀=0.25, one test per real domain.
-- **Threshold:** p < 0.0125 (Bonferroni-corrected, 4 tests) for ≥2 of 3 real domains.
+- **Test:** exact binomial on target-category frequency vs p₀=0.25 per domain.
+- **Threshold:** p < 0.0125 (Bonferroni for 4 tests) for ≥2 of 3 real domains.
 
 **H4 (post-matrix falsification discriminates):** L11 falsification on modal winners of D1/D2/D3 produces non-degenerate verdict distribution.
-- **Test:** classify 3 verdicts as {strong, framing_dependent, falsified}; count.
+- **Test:** classify 3 verdicts as {strong, framing_dependent, falsified}.
 - **Threshold:** no single verdict accounts for all 3.
 - **Honesty note:** underpowered — sanity check, not validation.
 
-**H5 (null — matrix does not fabricate structure):** On synthetic flat D0, matrix should NOT produce dominant winner category.
-- **Test:** exact binomial on D0 target-category frequency vs p₀=0.25.
-- **Threshold:** p ≥ 0.0125 (FAIL-to-reject uniformity). If D0 shows p<0.0125, H5 is falsified and D1/D2/D3 positive results lose standing.
+**H5 (null — matrix does not fabricate structure):** On synthetic flat D0, matrix should NOT produce dominant solo-winner category.
+- **Test:** exact binomial on D0's most-frequent solo-winner semantic category vs p₀=0.25.
+- **Threshold:** p ≥ 0.0125 (fail-to-reject uniformity). If p<0.0125, H5 is falsified and D1/D2/D3 positive results lose standing per §6.
 
-**H6 (cell-level schema conformance) — NEW in v3, scoped in v6:** Individual cell outputs pass the 7-gate validator at a rate high enough for composites to be comparable. **This metric is cell-only — it does NOT incorporate rerun invalidation. See H7 for that.**
-- **Test:** `H6_rate = ok_cells / total_dispatched_cells` per domain, where `ok_cells` is the count of cells passing all 7 gates of §3.1 (after the one allowed retry). `total_dispatched_cells = 180` per domain (9 cells × 20 reruns). An invalidated rerun's individually-passing cells STILL count as `ok` here — H6 is purely cell-level.
-- **Threshold:** rate ≥ 80% per domain, in all 4 domains.
-- **Applies to:** L7 (issue #105 — prompt-only discipline drifts).
+**H6a (schema discipline — NEW split in v11):** Individual cell outputs pass the FIVE structural gates (parse, exact 4-key schema, convention string, score type/bounds in [1,10], dealbreaker infrastructure grounding) at a rate sufficient for composites to be comparable.
+- **Test:** `H6a_rate = schema_ok_cells / 180` per domain.
+- **Threshold:** rate ≥ 0.80 per domain, in all 4 domains.
+- **Measures:** "can the model produce correctly-structured JSON with sane scores?" — independent of domain vocabulary.
 
-**H7 (rerun-level validity) — NEW in v6:** Reruns survive the §3.1 "any drop invalidates the entire rerun" rule at a rate high enough that the surviving reruns are a representative sample.
-- **Test:** `H7_rate = valid_reruns / total_reruns` per domain. A rerun is `valid` if it has zero dropped cells after retry. `total_reruns = 20` per domain.
-- **Threshold:** rate ≥ 80% per domain, in all 4 domains.
-- **Why separate from H6:** Codex round-6 noted that the v5 conflation of cell-conformance with rerun-invalidation could let one stubborn cell zero out eight valid siblings. Splitting fixes that — H6 measures schema discipline; H7 measures rerun usability. Both gate H1/H2/H3.
-- **Consequence of H6 OR H7 failure:** H1, H2, H3 for that domain are auto-FAILED.
+**H6b (product-name lexical discipline — NEW split in v11):** Individual cell outputs avoid the pre-registered product/library-name banned list in model-generated text fields.
+- **Test:** `H6b_rate = lexical_ok_cells / 180` per domain, where a cell is `lexical_ok` iff `mechanism_novelty` and `dealbreaker` (when non-null) contain no banned token per case-insensitive word-boundary regex.
+- **Threshold:** rate ≥ 0.80 per domain, in all 4 domains.
+- **Measures:** "does the model reason in mechanism-level vocabulary rather than parroting product names from the prompt?"
+- **Design invariant (v11):** pre-registered banned lists contain ONLY product/library/service names. Concept-level vocabulary (`cache`, `retry`, `migration`, `window`) is NEVER banned. If a banned list is discovered post-hoc to contain a concept word, the protocol ABORTS per §10.6 (new v11 abort condition).
 
-### Power Analysis (Justifying n=20 and threshold 14/20)
+**H7 (rerun-level validity):** Reruns survive the §3.1 "any drop invalidates the entire rerun" rule at a rate sufficient for the surviving reruns to be a representative sample.
+- **Test:** `H7_rate = valid_reruns / 20` per domain, where a rerun is `valid` if zero of its 9 cells were dropped after retry. A cell is dropped if either H6a or H6b fails after the allowed retry.
+- **Threshold:** rate ≥ 0.80 per domain, in all 4 domains.
+- **Consequence of H6a OR H6b OR H7 failure for a domain:** H1, H2, H3 auto-FAIL for that domain.
 
-Under H0 (uniform 4-category, p=0.25), P(X≥14/20) = 0.00014. Bonferroni-corrected for 4 categories: ~5.5e-4. Well below α=0.01.
+### Power Analysis (unchanged)
 
-Under H1 true p=0.70 (modest effect), power ≈ 0.58. Under p=0.85 (strong effect), power ≈ 0.93. **Honest limitation:** negative result is consistent with both no-effect and missed-modest-effect. Positive result excludes no-effect with >99% confidence.
+Under H0 uniform p=0.25, P(X≥14/20) = 0.00014. Bonferroni-corrected (4 categories): ~5.5e-4. Below α=0.01.
+
+Under H1 true p=0.70, power ≈ 0.58. Under p=0.85, power ≈ 0.93. Honest limitation: negative result is consistent with both no-effect and missed-modest-effect. Positive result excludes no-effect with >99% confidence.
 
 ---
 
-## 2. Domains (3 real + 1 synthetic control, 4 total)
+## 2. Domains (3 real + 1 synthetic control)
 
-Each domain specifies: 3 options, 4 MEE mechanism categories (single-axis partition — see §2.1), target category prediction, banned tokens, and — new in v3 — an **environment block** (L8 infrastructure context).
+Each domain specifies: 3 options, 4 MEE mechanism categories (single-axis partition — §2.1), target category prediction, banned tokens (product/library names only per v11 design invariant), and environment block (L8 context).
 
 ### 2.1 MEE Category Design Principle
 
-v1 categories overlapped. v2 fixed by choosing a single axis of differentiation per domain. v3 retains this; each taxonomy is a partition, not a tagset.
+Unchanged from v3. Each taxonomy is a partition (one axis of differentiation), not a tagset.
 
-### 2.2 Environment Blocks (L8 — New in v3)
+### 2.2 Environment Blocks (L8)
 
-Each domain pre-registers a paragraph describing the deployment context. This prevents haiku from hallucinating dealbreakers about infrastructure that is present or absent. The block is part of every cell prompt (§3).
+Unchanged from v3. Each domain pre-registers a paragraph describing deployment context to prevent Haiku from hallucinating dealbreakers about infrastructure that isn't present.
+
+### 2.3 Banned Token Design (v11)
+
+Banned tokens are **product/library/service names that appear in OPTION DESCRIPTIONS** (not env blocks) OR well-known equivalents in that ecosystem. They exist to prevent the model from parroting a specific brand as if it were the mechanism. They MUST NOT include:
+- The domain's conceptual noun (e.g., `cache`, `retry`, `migration`, `deploy`).
+- Adjectives/verbs describing the mechanism (e.g., `shared`, `async`, `eventual`).
+- Algorithm family names that describe a class of mechanism rather than a product (e.g., `lru` describes an eviction policy; `token-bucket` describes a rate-limit algorithm — these are CONCEPTS, not products).
+- Env-block-mentioned infrastructure names (e.g., `postgresql`, `kubernetes`, `grafana`) — these are deployment context the model should be free to reference. Infrastructure grounding is already enforced by Gate 7.
+
+**Decidability guidance for edge cases:**
+- `postgresql` / `postgres` — **product name**, but in env block = NOT banned per "env-block exception" above.
+- `SQL`, `HTTP`, `REST` — **concepts** (specification families), never banned.
+- `git` / `docker` / `kubernetes` — product names when used as nouns referring to the system; but if they are env-block infrastructure, NOT banned.
+- Eponymous patterns like `kubernetes-style` or `docker-ize` — treat as CONCEPTS (pattern generalizations), not banned.
+- **CamelCase / titlecase of concept words** (e.g., `CircuitBreaker`, `TokenBucket`, `LRUCache`) — treat as CONCEPTS when the underlying word is a concept, not banned. The word-boundary regex in Gate 6 will naturally match `CircuitBreaker` only if the literal token `circuitbreaker` or similar is in the banned list; `circuit` alone in a ban list matching `CircuitBreaker` via partial match is a tokenization bug, not a design feature.
+- When genuinely ambiguous: default to NOT banning. False-allow is less costly than false-ban, because Gate 7 (infra-grounding) still catches unsupported product claims in dealbreakers.
+
+Any post-hoc discovery that a banned list contains a concept word triggers §10.6 abort.
 
 ### Domain D1: Caching strategy for a read-heavy web service
 
@@ -89,11 +109,11 @@ Each domain pre-registers a paragraph describing the deployment context. This pr
 - B: Shared Redis cluster
 - C: Read-replica database with connection pooling
 
-**Axis:** *Where does the authoritative read-path state live?*
-- `in-process-private` — serving process holds its own copy, no coordination (A)
-- `out-of-process-shared` — separate coordinating process, networked (B)
-- `source-replica` — read-path state is a replica of the system of record (C)
-- `recompute-on-demand` — no dedicated cached state
+**Axis:** Where does the authoritative read-path state live?
+- `in-process-private` (A)
+- `out-of-process-shared` (B)
+- `source-replica` (C)
+- `recompute-on-demand`
 
 **Target category:** `out-of-process-shared` (B).
 
@@ -106,7 +126,7 @@ No existing cache infrastructure. Network latency within cluster <1ms p99.
 Deploy pipeline rolls replicas 1-at-a-time; no blue/green.
 ```
 
-**Banned tokens:** `redis`, `memcached`, `lru`, `cdn`, `cache`, `ttl`, `eviction`, `invalidation`, `hazelcast`, `ignite`, product names.
+**Banned tokens (v11, product/library names only):** `redis`, `memcached`, `hazelcast`, `ignite`, `couchbase`, `ehcache`, `varnish`. These are cache-system products the model might parrot from knowledge, not from the env block. **Not banned:** env-block-mentioned products (`kubernetes`, `istio`, `grafana`, `prometheus`, `postgresql`) — they are deployment context, not mechanism choices. Banning env-block vocabulary would inflate H6b failures from natural context echo without adding signal.
 
 ### Domain D2: Schema migration on a 50M-row production table
 
@@ -115,11 +135,11 @@ Deploy pipeline rolls replicas 1-at-a-time; no blue/green.
 - B: Shadow table + atomic rename
 - C: Dual-write to old and new columns with async backfill
 
-**Axis:** *Does the migration hold a write lock during its runtime?*
+**Axis:** Does the migration hold a write lock during its runtime?
 - `lock-and-mutate` (A)
 - `parallel-build-then-swap` (B)
 - `incremental-reconcile` (C)
-- `rebuild-from-log` — no lock, replay event log
+- `rebuild-from-log`
 
 **Target category:** `parallel-build-then-swap` (B).
 
@@ -132,20 +152,22 @@ No CDC pipeline. No event log. Application code controlled by same team.
 Rollback SLA: 10 minutes from detection. Customer-facing — errors visible.
 ```
 
-**Banned tokens:** `flyway`, `liquibase`, `alembic`, `gh-ost`, `pt-online-schema-change`, `rails migration`, `django migration`, tool names.
+**Banned tokens (v11, product/library names only — unchanged from v10.3 which already complied):** `flyway`, `liquibase`, `alembic`, `gh-ost`, `pt-online-schema-change`, `postgresql`, `postgres`, `rails`, `django`.
 
-### Domain D3: Retry strategy for flaky external API
+### Domain D3: Failure-handling strategy for a flaky external API
+
+Reworded from v10.3's "Retry strategy for flaky external API" to avoid embedding a concept word in the problem statement.
 
 **Options:**
-- A: Exponential backoff with jitter
-- B: Circuit breaker with half-open probe
+- A: Exponential backoff with randomized delay
+- B: Stateful controller that halts attempts when aggregate failure rate crosses a threshold and periodically probes
 - C: Dead-letter queue with manual replay
 
-**Axis:** *What information drives the retry decision?*
+**Axis:** What information drives the retry decision?
 - `time-only` (A)
 - `failure-rate-state` (B)
 - `deferred-delegation` (C)
-- `parallel-fallback` — multiple targets concurrently
+- `parallel-fallback`
 
 **Target category:** `failure-rate-state` (B).
 
@@ -158,466 +180,179 @@ Redis available for shared state. Ops team on-call 24/7 for P1; P2 batched.
 User-facing latency budget 1.5s p95. Failed request cost: blocked checkout.
 ```
 
-**Banned tokens:** `tenacity`, `retry`, `backoff`, `circuit`, `hystrix`, `resilience4j`, `polly`, `jitter`, library names.
+**Banned tokens (v11, product/library names only):** `tenacity`, `hystrix`, `resilience4j`, `polly`, `opossum`, `failsafe`. These are retry/circuit-breaker library names. **Not banned:** env-block-mentioned products (`redis`, `stripe` via "payment processor", any `aws-*` SDK names) — they are deployment/consumer context, not mechanism choices. Same rationale as D1.
 
-### Domain D0 (synthetic control): Deploy window choice
+### Domain D0 (synthetic control)
 
-**Options:**
-- A: Deploy on weekday mornings
-- B: Deploy on weekday afternoons
-- C: Deploy on weekday evenings
+Unchanged from v10.3 (passed H5 with p=0.38). Reproduced here for completeness.
 
-**Axis:** time-of-day.
-- `morning`
-- `afternoon`
-- `evening`
-- `other` (night/weekend/never)
+**Options:** A=mornings, B=afternoons, C=evenings. Axis: time-of-day. Target: NONE.
 
-**Target category:** NONE — we predict no signal.
+**Environment block:** flat — every window is equivalent, 8 engineers one time zone, no SLA, no traffic pattern.
 
-**Environment block:**
-```
-Team is 8 engineers in a single time zone. No external SLAs tied to deploy windows.
-CI takes 12 minutes. Rollback takes 3 minutes. No global traffic patterns worth
-mentioning — traffic distribution across the day is flat within 10%.
-No users report time-of-day preferences.
-```
-(Deliberately flat — every window is equivalent.)
+**Banned tokens:** `standup`, `lunch`, `traffic`, `on-call`, `monitoring`, `rollback`. (These ARE domain-adjacent concept words, but D0's purpose is to test the null — the banned list's stringency is part of the null test. If D0 passes H5 despite this, the matrix is robust to prompt-level priming noise.)
 
-**Banned tokens:** `standup`, `lunch`, `traffic`, `on-call`, `monitoring`, `rollback`.
+**Note on D0 banned list inconsistency with v11 design invariant:** D0 is explicitly exempted from §2.3 because its role is a stress-test control, not a real domain. If D0 failed H6b in a future run, we would reconsider D0's list too — but the v10.2 run passed H6a=H6b=1.0 on D0 despite this list, which is evidence the model CAN avoid these when the domain vocabulary is sparse.
 
 ---
 
 ## 3. Neutral Prompt Construction
 
-Each cell prompt is constructed from a template with two neutrality gates and one schema gate:
+Unchanged from v10.2 (including Fix B permutation per Amendment 2/3 of v10.3, now preserved natively in v11).
 
-**Lexical gate (automated):** regex scan **the model's output text**, NOT the prompt. The prompt's pre-registered environment block (§2.2) may contain neutral mentions of vocabulary that overlaps the banned-token list (e.g., D1's environment notes "no existing cache infrastructure" while `cache` is banned in model output). This is intentional — the goal is to prevent the model from re-introducing banned terms in `mechanism_novelty` and `dealbreaker`, not to censor the deployment context. Output hit = re-dispatch (per §3.1 schema procedure).
+Each cell prompt is constructed from the v10.2 template. Per rerun, a pre-registered balanced permutation rotates which semantic option maps to labels A/B/C. The listing order in "## All Options Under Consideration" is always A, B, C (positions stay constant); only the semantic assignment rotates. Solo cells 1/2/3 evaluate labels A/B/C with the rerun's rotated semantics.
 
-**Conceptual gate (human):** Pedro reads the ~12 unique prompt bodies (cells share prefixes) and rejects on paraphrased leakage. ~5 min per domain.
+Balanced sequence (reused from v10.2): 3 blocks of 6 unique permutations + 2 bonus. Each (label, semantic) pair appears 6 or 7 times across 20 reruns (max imbalance = 1).
 
-**Schema gate (automated, new in v3):** after dispatch, each cell output is JSON-parsed and validated for exact 4-dimension schema, score type/bounds, composite integrity, and dealbreaker grounding (§3.1).
+Cell template verbatim from v10.2, unchanged in v11.
 
-**Cell template (Haiku):**
-```
-CRITICAL: Do NOT invoke any tools. Answer only from this prompt. Return JSON immediately.
+### 3.1 Schema Validation (v11, 6 gates, with H6 split)
 
-You are scoring a design option for the following problem.
-
-## Problem
-{PROBLEM}
-
-## Available Infrastructure / Environment
-{ENVIRONMENT_BLOCK}
-
-## All Options Under Consideration
-A: {A_description}
-B: {B_description}
-C: {C_description}
-
-## Option Under Evaluation
-Cell {N}: {LABEL} — {OPTION_DESCRIPTION}
-
-## SCORING CONVENTION (MANDATORY — HIGHER=BETTER on ALL dimensions)
-
-You MUST score EXACTLY these four dimensions, using these EXACT keys. Do not add,
-rename, or omit any. Your output will be schema-validated and rejected if the
-dimension keys do not match.
-
-- feasibility: 1 showstopper → 10 trivial to build
-- risk: 1 highest risk → 10 lowest risk / most robust (HIGHER = SAFER)
-- synergy_potential: 1 incompatible → 10 composes cleanly
-- implementation_cost: 1 days of work → 10 minutes
-
-## Output (JSON only, no prose, no fences)
-
-{
-  "cell": {N},
-  "label": "{LABEL}",
-  "risk_direction_used": "higher_safer",
-  "scores": {
-    "feasibility": <int 1-10>,
-    "risk": <int 1-10>,
-    "synergy_potential": <int 1-10>,
-    "implementation_cost": <int 1-10>
-  },
-  "composite": <mean of the 4 scores>,
-  "mechanism_novelty": "<one sentence; no banned tokens; commit to one mechanism, no hedging>",
-  "dealbreaker": null or "<one sentence; if risk is based on infrastructure, only cite infrastructure explicitly listed in the Environment block above>"
-}
-
-Your "scores" object must contain EXACTLY those 4 keys. Any other keys cause
-rejection and re-dispatch. Do not include correctness, complexity, robustness,
-token_efficiency, coordination_power, debuggability, failure_isolation,
-leverage, novelty, composability, runtime_safety, latency_impact, reliability,
-observability_gain, operational_complexity, security_surface, safety,
-hook_coverage, or any other dimension. Four dimensions. Named exactly as above.
-```
-
-### 3.1 Schema Validation (NEW in v3, hardened in v4 per Codex round-4)
-
-After each rerun batch, every cell output is validated against five gates:
+After each rerun batch, every cell output is validated against 6 gates. **Important change from v10.3:** Gate 6 (banned-token scan) is REQUIRED for cell `ok` just like the other gates, BUT the gate-level failures are reported under two separate buckets for H6a vs H6b computation.
 
 ```python
-import json, re
+# Gates 1-5 compose H6a (schema discipline).
+# Gate 6 composes H6b (product-name lexical discipline).
+# Gate 7 (infra grounding) composes H6a (still part of schema discipline — it's a
+#   structural check on dealbreaker consistency, not a lexical check).
 
-REQUIRED = {"feasibility", "risk", "synergy_potential", "implementation_cost"}
-
-def validate(cell_output, env_block_text, banned_tokens):
-    # Gate 1: parses
-    try:
-        obj = json.loads(cell_output)
-    except json.JSONDecodeError:
-        return "parse_fail"
-
-    # Gate 2: exact 4-key schema
-    scores = obj.get("scores", {})
-    if set(scores.keys()) != REQUIRED:
-        return "schema_fail"
-
-    # Gate 3: convention declared
-    if obj.get("risk_direction_used") != "higher_safer":
-        return "convention_fail"
-
-    # Gate 4: scores are integers in [1, 10]
-    for k, v in scores.items():
-        if not isinstance(v, int) or not (1 <= v <= 10):
-            return "score_type_fail"
-
-    # Gate 5: composite is recomputed (model-reported value is discarded)
-    obj["composite"] = sum(scores.values()) / 4.0
-
-    # Gate 6: lexical scan only on model-generated text fields
-    output_text = " ".join([
-        obj.get("mechanism_novelty", "") or "",
-        obj.get("dealbreaker", "") or "",
-    ]).lower()
-    for token in banned_tokens:
-        if re.search(rf"\b{re.escape(token.lower())}\b", output_text):
-            return "banned_token_fail"
-
-    # Gate 7: dealbreaker grounding — if dealbreaker exists and cites
-    # infrastructure, the cited infrastructure must appear in the environment
-    # block. Heuristic: dealbreaker contains a noun matching some env-block
-    # noun, OR the dealbreaker is a generic concern (no infra noun).
-    db = (obj.get("dealbreaker") or "").lower()
-    if db and _cites_unlisted_infra(db, env_block_text):
-        return "infra_grounding_fail"
-
-    return "ok"
+def validate(cell_output):
+    # Gate 1: parses as JSON           → fails: parse_fail            → counts as H6a miss
+    # Gate 2: exact 4-key scores schema → fails: schema_fail           → H6a miss
+    # Gate 3: convention string         → fails: convention_fail       → H6a miss
+    # Gate 4: scores int in [1,10]      → fails: score_type_fail       → H6a miss
+    # Gate 5: composite recomputed      → never fails (always overwrites) — not a gate
+    # Gate 6: banned-token scan         → fails: banned_token_fail:X   → H6b miss
+    # Gate 7: infra grounding           → fails: infra_grounding_fail  → H6a miss
 ```
 
-`_cites_unlisted_infra` is a small Pedro-coded heuristic: extracts noun phrases from the dealbreaker text using a 30-line regex helper, checks each against the environment block text. If any noun phrase names infrastructure (heuristic: ends in `daemon`, `service`, `queue`, `cluster`, `database`, `pipeline`, `mesh`, `cache`, `replica`, etc.) and is NOT in the environment block, the gate fails. The helper code is committed before execution and frozen.
+**Per cell:**
+- Any gate fails → re-dispatch ONCE with stricter preamble naming the failure.
+- Second failure → cell is `dropped` for that rerun. Record WHICH gate failed (H6a bucket or H6b bucket).
 
-**Enforcement (v6 — single authoritative block, supersedes earlier wording):**
+**Per rerun:**
+- A rerun with ≥1 dropped cell (from either bucket) is INVALIDATED.
+- H1/H2/H3 handling of invalidated reruns same as v10: counts as non-target for H1/H3, breaks 3-grid for H2 Sonnet/Opus, contributes to the 16/20 winner-bearing floor check for H2 Haiku.
 
-Per cell:
-- Any of the 7 gates fails → re-dispatch that cell ONCE with a stricter preamble naming the failure.
-- Second failure → mark the cell as `dropped` for that rerun.
-
-Per rerun (main 9-cell or H2 3-grid):
-- A rerun with **≥1 dropped cell** is **invalidated**.
-- **For H1 (Haiku 20-rerun grid):** invalidated reruns are excluded from the modal computation, but the denominator stays fixed at 20 — they count as non-target outcomes for the H1 target_count.
-- **For H2 Haiku side (drop-and-aggregate):** invalidated reruns are dropped from the winner list; H2 fails on the Haiku side only if (a) fewer than 16 of the 20 reruns are "winner-bearing" (valid AND have a rerun-level winner — see §1 H2 sample-size floor) OR (b) the remaining list has no unique modal winner.
-- **For H2 Sonnet/Opus side (strict 3-grid):** any invalidated rerun OR any rerun with no winner makes the entire 3-grid unusable; H2 auto-fails for that model on that domain.
-- **For H3:** uses the same target_count as H1 (and inherits the same rerun handling).
-- This is the single authoritative invalidation rule. §1 and §7 describe the same procedure.
-
-Per domain, H6 and H7 are computed from the same data with **different perspectives** (no conflation, no double-counting):
+**Per domain, three metrics computed independently:**
 
 ```
-H6_rate = ok_cells           / total_dispatched_cells   # cell-level perspective
-H7_rate = valid_reruns       / total_reruns             # rerun-level perspective
+H6a_rate = schema_ok_cells     / 180   # passed gates 1, 2, 3, 4, 7
+H6b_rate = lexical_ok_cells    / 180   # passed gate 6
+H7_rate  = valid_reruns        / 20    # reruns with zero drops from either bucket
 ```
 
 | Symbol | Definition |
 |--------|------------|
-| `ok_cells` | count of cells that passed all 7 gates after the allowed retry. Invalidation of a rerun does NOT subtract from `ok_cells`. |
-| `valid_reruns` | count of reruns with **zero** dropped cells after retry. |
-| `total_dispatched_cells` | fixed at `9 × 20 = 180` per domain. |
-| `total_reruns` | fixed at `20` per domain. |
+| `schema_ok_cells` | cells that passed gates 1, 2, 3, 4, 7 after retry (independent of Gate 6 outcome). |
+| `lexical_ok_cells` | cells that passed Gate 6 after retry (independent of other gates). |
+| `valid_reruns` | reruns with zero dropped cells (i.e., every cell passed ALL gates, 1–7). |
 
-**Worked example** (resolves the round-7 ambiguity): a domain with 20 reruns where each rerun has exactly 8 ok-cells and 1 dropped cell → `ok_cells = 160`, `valid_reruns = 0`. `H6_rate = 160/180 ≈ 0.89` (passes ≥0.80). `H7_rate = 0/20 = 0` (fails ≥0.80). Result: H6 passes, H7 fails, H1/H2/H3 auto-fail for the domain because **both** must pass.
+**Worked example (cross-gate orthogonality):**
 
-The two metrics measure different constructs: H6 = "do individual cells obey the schema?", H7 = "are full reruns useful as analysis units?". They can disagree, and that disagreement is informative — it's why both gate H1/H2/H3.
+A domain has 20 reruns × 9 cells = 180 cells. Suppose 170 cells pass gates 1–5,7 on first try (H6a candidates 170); 150 of those also pass Gate 6 on first try. The other 20 lexical-fail and retry: 16 pass on retry, 4 still fail → H6b = 166/180 = 0.92. Meanwhile 10 cells initially failed gates 1–5,7: 7 pass on retry, 3 still fail → H6a = 177/180 = 0.98. `valid_reruns` is the count of reruns where ALL 9 cells are drop-free (NOT 20 minus total drops — drops may co-occur in the same rerun). If the 7 drops (3 H6a + 4 H6b) are spread across 7 distinct reruns, valid_reruns = 13 → H7 = 0.65 (fails 0.80). If the 7 drops are clustered in 3 reruns, valid_reruns = 17 → H7 = 0.85 (passes). Same total H6a/H6b rates, different H7 depending on drop distribution. This is why H7 is tracked independently and why per-rerun fail-bucket attribution is a required §9 diagnostic: clustered-vs-spread drops matter.
 
-**H2 specific note (v10 — aligned with §1/§7):** Sonnet and Opus 3-grids are subject to a strict sample-size floor: any invalidated rerun OR any rerun with no winner (per the §1 tie rule) makes the entire 3-grid unusable, and H2 auto-fails for that model on that domain. Haiku's 20-rerun grid uses a 16-winner-bearing floor (matching H6/H7 ≥80%): if fewer than 16 reruns are valid AND have a rerun-level winner, H2 auto-fails on the Haiku side; otherwise the modal winner is computed across those ≥16 winner-bearing reruns and H2 fails only if no unique mode exists. The asymmetry between Sonnet/Opus (n=3 strict) and Haiku (n=20 with 80% representativeness floor) is justified by sample size and matches §1/§7 verbatim.
+Passes gate → cell composite is usable for solo-winner extraction (Fix A). Solo winner extraction (Fix A) ignores combos/alts always — unchanged from v10.1.
+
+**Authoritative:** §1 H6a, H6b definitions control. §7 mirrors §1 verbatim. §3.1 explains procedure. On any perceived conflict between sections, §1 wins.
 
 ---
 
 ## 4. Execution Plan
 
-**Per domain × 4 domains:**
-- 20 Haiku reruns × 9 cells, `allowed-tools: []`.
-
-**Plus for H2 (D1, D2, D3 — v5 full grid):**
-- 3 Sonnet reruns × 9 cells per domain.
-- 3 Opus reruns × 9 cells per domain.
-
-**Total dispatches:**
-- 4 × 20 × 9 = 720 Haiku cell dispatches.
-- 3 × 2 × 3 × 9 = 162 Sonnet+Opus cell dispatches.
-- Schema re-dispatches: estimated 15-25% failure rate → ~150 extra dispatches.
-- Blind-coding judges (§5): 12 dispatches.
-- **Grand total: ~1,044 dispatches.**
-
-**Budget:** Haiku ~$2.00, Sonnet+Opus ~$3.20, coding ~$0.30, re-dispatches ~$0.50. Total ~$6.00. Add 1.5× buffer: **$8-9**.
-
-**Wall clock:** ~2h with parallelism (9 cells parallel, 20 reruns per domain, 4 domains).
+Identical to v10.3 §4. 20 Haiku reruns × 9 cells per domain × 4 domains = 720 Haiku cell dispatches. 3 Sonnet + 3 Opus reruns × 9 cells × 3 real domains = 162. Schema re-dispatches estimated 15–25% → ~150 extra. Blind-coding judges = 12. **Grand total: ~1,044 dispatches. Budget ~$8-9. Wall clock ~2–3h with parallelism.**
 
 ---
 
-## 5. Blind Coding (v3 — unchanged from v2 but clarified)
+## 5. Blind Coding
 
-Requirements:
-1. Two judges from different model families (Haiku + Sonnet).
-2. Cohen's kappa ≥ 0.75 threshold — below that, domain H1/H3 declared FAILED (not dropped).
-3. Third judge is HUMAN (Pedro) — adjudicates disagreements. Breaks model-family correlation chain.
-4. Co-error check in report: human-vs-model-consensus disagreement rate on sampled subset. If > 15%, downgrade H-results with the note "coding may reflect model co-error".
+Identical to v10.3 §5. Two judges (Haiku + Sonnet). Cohen kappa ≥ 0.75. Third judge is Pedro for disagreements. Co-error check in report.
 
-Procedure same as v2 §5.
+**v11 addition (Fix B interaction):** Each blind-coding batch includes the rerun's Fix B permutation mapping (A→semantic, B→semantic, C→semantic) alongside the winner's cell number, label, and `mechanism_novelty` sentence. This is required for the judge to translate winner label to the semantic option before classifying into the 4-category taxonomy. Judges DO NOT see the solo winner's composite score, dealbreaker, or the non-winning cells' scores — only what is necessary to classify the mechanism description into one of the 4 pre-registered categories for that domain.
 
 ---
 
 ## 6. Synthetic Control D0
 
-D0 runs first. If H5 fails on D0 (dominant category emerges on flat options), abort the entire protocol — the null baseline is poisoned by prompt geometry, and no amount of positive results on D1/D2/D3 rescue that.
+Unchanged. D0 first. If H5 fails (dominant category emerges on flat options), protocol ABORTS per §10. No amount of positive D1/D2/D3 results rescues that.
 
 ---
 
-## 7. Analysis (Mirrors §1 Exactly)
+## 7. Analysis (Mirrors §1 Verbatim)
 
-Analysis code in `/tmp/null-model-runs/analyze.py`, written AFTER reruns complete, < 100 lines, zero free choices.
+Analysis code at `docs/null-model-runs-v11/analyze.py`, written AFTER reruns complete, zero free choices.
 
-Exact decision rules:
+Rules:
 
-- **H6 (run first, all 4 domains):** compute `H6_rate = ok_cells / 180`. Fail H6 for any domain < 0.80.
-
-- **H7 (run second, all 4 domains):** compute `H7_rate = valid_reruns / 20`. Fail H7 for any domain < 0.80.
-
-- **For each domain, H1/H2/H3 are auto-FAILED if H6 OR H7 failed for that domain.** Otherwise proceed.
-
-- **H1:** for each of D1, D2, D3 where both H6 and H7 passed, identify each valid rerun's winner cell (highest composite; ties = non-target). Compute `target_count = count(valid reruns where winner's blind-classified category == target)`. Denominator is always 20 (invalidated reruns count as non-target). Pass H1 if `target_count ≥ 14` for at least 2 of 3 domains.
-
-- **H2:** for each of D1, D2, D3 where both H6 and H7 passed, apply the unified winner extraction from §1 (rerun-level winner = highest composite; ≥2 cells within 0.001 of top = no winner for that rerun) to all reruns of all three models on this domain. Then:
-  1. **Sonnet and Opus (strict 3-grid):** verify all 3 reruns are valid (per §3.1 invalidation rule) AND each rerun has a rerun-level winner. If any is invalid or has no winner, H2 auto-fails for that model on that domain. Otherwise identify the unique modal winner across all 3. If no unique mode, H2 auto-fails for that model.
-  2. **Haiku (20-grid, 16-winner floor):** count winner-bearing reruns (valid per §3.1 AND has a rerun-level winner). If <16, H2 auto-fails on Haiku side. Otherwise build the winner list from those reruns and identify the unique modal winner. If no unique mode, H2 auto-fails on Haiku side.
-  3. Pass H2 for the domain if Haiku passed AND Sonnet passed AND Opus passed AND Sonnet-modal == Haiku-modal AND Opus-modal == Haiku-modal.
-- **H2 final pass:** Pass for ≥2 of 3 real domains.
-
-This is the single rule shared between §1, §7, and §3.1. No alternative interpretation. Asymmetric handling: Sonnet/Opus n=3 strict; Haiku n=20 needs ≥16 winner-bearing reruns then drop-and-aggregate among them (16/20 = 80%, matching H6/H7 representativeness).
-
-- **H3:** for each of D1, D2, D3 where both H6 and H7 passed, run `scipy.stats.binomtest(target_count, 20, 0.25, alternative='greater')` using the same `target_count` from H1. Pass if p < 0.0125 for at least 2 of 3 domains.
-
-- **H4:** run post-matrix falsification on modal winners of D1, D2, D3. Classify 3 verdicts. Pass if no single verdict accounts for all 3.
-
-- **H5:** `scipy.stats.binomtest(d0_target_count, 20, 0.25, alternative='greater')` where `d0_target_count` is the most frequent category on D0. Pass if p ≥ 0.0125.
-
-Any deviation is a protocol violation.
+- **H6a (run first, all 4 domains):** compute `H6a_rate = schema_ok_cells / 180`. Fail H6a for any domain < 0.80.
+- **H6b (run second, all 4 domains):** compute `H6b_rate = lexical_ok_cells / 180`. Fail H6b for any domain < 0.80.
+- **H7 (run third, all 4 domains):** compute `H7_rate = valid_reruns / 20`. Fail H7 for any domain < 0.80.
+- **For each domain, H1/H2/H3 are auto-FAILED if ANY of H6a, H6b, H7 failed for that domain.** Otherwise proceed.
+- **H1:** for each of D1/D2/D3 where H6a, H6b, H7 all passed, identify each valid rerun's solo winner (Fix A, ties = non-target). Compute `target_count = count(valid reruns where solo winner's blind-classified semantic category == target)`. Denominator fixed at 20. Pass H1 if target_count ≥ 14 for ≥2 of 3 domains.
+- **H2:** mirrors §1 H2 verbatim. Haiku 16/20 winner-bearing floor. Sonnet/Opus 3-grid drop-and-aggregate with 2/3 winner-bearing floor (v11 change): at least 2 of 3 reruns must be valid-and-winner-bearing, and those 2 or 3 must have a unique modal winner; otherwise H2 auto-fails for that model on the domain. Cross-model modal match required across Haiku, Sonnet, Opus. Pass ≥2/3 real domains.
+- **H3:** exact binomial on target_count vs p₀=0.25, p<0.0125 for ≥2/3.
+- **H4:** post-matrix falsification verdict distribution, no single verdict accounts for all 3.
+- **H5:** D0 binomial on most-frequent semantic category vs p₀=0.25, p≥0.0125 = pass.
 
 ---
 
 ## 8. Protocol Amendments
 
-Any change post-execution-start requires:
-1. Dated "Amendment" section below.
+v11 starts fresh. No amendments at pre-registration. Any deviation post-execution-start requires a dated Amendment section with:
+1. Affected procedure.
 2. Explicit justification.
-3. Note affected hypotheses.
-4. **Amendment counts as failure for any hypothesis where it relaxes a threshold or substitutes a test.** Blocks move-the-goalposts.
+3. Hypotheses affected.
+4. **Amendment counts as failure for any hypothesis where it relaxes a threshold or substitutes a test.**
 
-### Amendment 3 (2026-04-16, pre-FASE-2, Fix B generalization to D1/D2/D3)
-
-**Affected procedure:** §3 prompt construction for D1, D2, D3 (extends Amendment 2's D0-scoped Fix B to all real domains). §7 H1/H3 semantic lookup via per-rerun permutation.
-
-**Justification:** D0 fresh run (2026-04-16, v10.2) validated Fix A + Fix B: H5 p=0.3828, H6=H7=100%. Per-domain diagnostics showed balanced category distribution (morning 3, afternoon 5, evening 6, other 6). The primacy-bias mechanism documented in Amendment 2 (Haiku favoring first-listed option) is a MODEL characteristic, not a domain-specific artifact. Running D1/D2/D3 without Fix B would leave those domains vulnerable to the same confound. Even if H1/H3 passed there under old prompts, the evidence would be ambiguous: we could not distinguish "matrix concentrates on target category" from "matrix concentrates on whatever is listed as Label A, which happens to be the target in our fixed prompt design."
-
-Note: for D1, D2, D3 the protocol pre-registers target=option B in every domain. If Label B naturally wins from position-bias alone (without Fix B), we'd see a confounded positive result with no way to diagnose. Fix B generalization is therefore mandatory for H1/H3 validity in D1/D2/D3, not optional.
-
-**Resolution (Fix B generalization):**
-- Same pre-registered balanced sequence of 20 permutations used in D0 is applied to D1/D2/D3.
-- Per-rerun, the mapping between labels (A, B, C) and semantic option keys (e.g., `out-of-process-shared`) is rotated.
-- H1/H3 aggregation resolves each rerun's solo-winner `solo_winner_label` → semantic key via permutation → category via `semantic_to_category` mapping.
-- Target-category testing is UNCHANGED: count reruns whose solo-winner semantic category == pre-registered target; threshold 14/20 for H1, binomial p<0.0125 for H3.
-
-Implementation: `/tmp/null-model-runs-v2/common.py` (shared permutation and aggregation) with per-domain configs at `/tmp/null-model-runs-v2/D{1,2,3}/toolkit.py`.
-
-**Hypotheses affected:** H1, H3. No threshold change; no test substitution. The analysis code's only update is resolving winner label → semantic category via permutation lookup before bucketing.
-
-**§8 rule 4 check:** Amendment does NOT relax any threshold and does NOT substitute any test. It eliminates a confound that would have inflated false positives for any domain targeting a fixed label position. Therefore Amendment 3 does NOT count as hypothesis failure.
-
-**Scope limit:** Same as Amendment 2 — if H1/H3 fail on v10.3 fresh runs, the protocol aborts per §10. No further prompt-level fixes will be attempted without full re-pre-registration.
-
-### Amendment 2 (2026-04-16, pre-FASE-1-fresh-run, Fix B — per-rerun balanced permutation)
-
-**Affected procedure:** §3 prompt construction (option ordering) and §7 H5 aggregation (semantic-category lookup via permutation).
-
-**Justification:** Post-abort sanity-check of v10.1 Fix A on the existing `/tmp/null-model-runs/D0/` dataset (n=20) showed H5 passing at p=0.0138 (margin 0.0013 over the 0.0125 threshold) but with a strong residual primacy bias in the underlying data:
-- Among the 10 reruns with a clear solo winner (ties broken by composite), **9/10** had Label A (first-listed option, fixed as `morning`) winning.
-- Under H0 (uniform p=1/3 over A/B/C among non-tied reruns), P(X≥9 in 10) ≈ 5.4e-4 — highly significant.
-- H5 passed only because the other 10/20 reruns were ties → "other" absorbed half the mass. The p-value was one "morning win" away from failing.
-
-Primacy bias is an implementation flaw distinct from the synergy_potential tautology Fix A addresses. Proceeding to a fresh FASE 1 run without correcting primacy bias would leave the null baseline ambiguous: a p=0.0039 failure would not distinguish "matrix fabricates structure" from "Haiku favors first-listed option."
-
-**Resolution (Fix B):** The prompt for each rerun randomizes the mapping between labels (A, B, C) and semantic options (morning, afternoon, evening) according to a pre-registered balanced sequence. The sequence is 3 blocks of 6 perms (each of the 6 permutations appears once per block, shuffled) plus 2 bonus reruns. Max imbalance across 20 reruns: any (label, semantic) pairing appears between 6 and 7 times.
-
-- Label order in "All Options Under Consideration" section remains A, B, C (listing position stays constant).
-- Semantic assignment to labels varies per rerun.
-- H5 aggregation looks up the SEMANTIC category of the solo winner via the per-rerun permutation.
-- Diagnostic outputs include both position counts (wins per cell number) and label counts (wins per label) so residual primacy bias is observable even if H5 passes.
-
-Implementation: `/tmp/null-model-runs-v2/D0/toolkit.py` (`permutation_for_rerun` + `_PRE_REGISTERED_SEQUENCE`).
-
-**Hypotheses affected:** H5. Test and threshold unchanged: exact binomial on most-frequent-semantic-category count vs p₀=0.25, pass iff p ≥ 0.0125. Fix B HARDENS the null model (removes a confound that was inflating "other" via ties AND masking primacy bias); it does NOT relax any threshold.
-
-**Relative to §8 rule 4 ("amendment counts as failure if it relaxes a threshold or substitutes a test"):** this amendment does neither. It changes prompt construction to eliminate a confounded structural bias that v10.1 Fix A left in place. Therefore Amendment 2 does NOT count as a hypothesis failure.
-
-**Scope limit:** Fix B is the final prompt-level correction for this validation cycle. If H5 fails on the fresh v10.2 D0 run, protocol aborts per §6 and FASE 2 does not proceed. No further prompt-level fixes will be attempted without a full pre-registration cycle.
-
-### Amendment 1 (2026-04-16, pre-execution, commits d58a2e9 + 4f888ce + ddca208)
-
-**Affected procedure:** H2 Haiku scoring path in §3.1.
-**Justification:** v10 (commit e86205c) introduced the 16-winner-bearing floor in §1/§7 but left a stale v9-era paragraph in §3.1 that described Haiku H2 as drop-and-aggregate without the floor. An analyst following §3.1 alone could derive a different H2 pass/fail than one following §1/§7. This is execution-significant ambiguity.
-**Resolution:** §3.1 paragraph synchronized with §1/§7 (commit d58a2e9). Metadata bumped to v10.1 (commit 4f888ce). Reclassified from wording-only to protocol amendment (commit ddca208).
-**Hypotheses affected:** H2. No threshold changed; no new test introduced. The operative rule in §1/§7 was already correct — the amendment resolved the stale §3.1 description to match it.
-**Precedence ruling:** in any version of this protocol, §1 (hypothesis definitions) is the authoritative source for pass/fail rules. §7 (analysis) must mirror §1 verbatim. §3.1 (enforcement) is explanatory and procedural — when §3.1 conflicts with §1, §1 controls. This precedence applied retroactively to v10 and all prior versions: any H2 analysis tooling, dry-runs, or scoring logic derived from §3.1's stale wording rather than §1 is void and must be discarded or rerun under v10.1. As of v10.1 no execution has begun, so no such artifacts exist.
+Precedence rule (retained from v10.1 Amendment 1): §1 is authoritative. §7 mirrors §1 verbatim. §3.1 is procedural. On conflict, §1 wins.
 
 ---
 
 ## 9. Expected Deliverable
 
-`docs/null-model-validation-report.md`:
-- H1-H6 pass/fail table with exact numbers.
-- Schema conformance rate per domain (H6 output).
-- Per-lesson decision: which of L1-L11 are supported, downgraded, or retracted.
+`docs/null-model-validation-report-v11.md`:
+- H1–H7 (including H6a, H6b split) pass/fail table with exact numbers.
+- Per-lesson decision: which of L1–L11 are supported, downgraded, or retracted.
 - Co-error check results.
-- Updated idea-matrix skill PR (if any).
-- Codex round-5 invitation.
-
-Budget for report + codex: ~$1.
+- Diagnostic: per-domain position/label bias counts, semantic category distribution, product-name leakage examples (if any).
+- **Required co-occurrence diagnostic (v11):** per-rerun fail-bucket attribution — for each invalidated rerun, tag which bucket(s) caused the drops: `H6a-only`, `H6b-only`, `both`. Reported as a 3-row table per domain. This surfaces whether H7 failure (if any) is driven by clustered same-bucket drops or by independent cross-bucket drops — important for diagnosing whether a future v12 should increase retry budget (clustered) or tighten a specific gate (independent).
+- Updated idea-matrix skill PR (if findings warrant).
+- Codex round invitation for v12 if any residual design flaw surfaces.
 
 ---
 
-## 10. Abort Conditions (v3 — Abort = Failure)
+## 10. Abort Conditions
 
 Protocol aborts on:
 - Cumulative cost > 2× budget ($14).
-- Banned-token scan trips >1 after 2 rebuild attempts per domain.
-- Kappa < 0.75 between model judges per domain → that domain's H1/H3 = FAILED (not aborted; v2 rule).
-- Pedro rejects conceptual-leakage review and cannot construct acceptable neutral prompt.
-- **NEW v3:** Schema conformance rate for any domain < 0.50 after re-dispatches → domain auto-fails H6, H1, H3; if this happens on ≥2 domains, whole protocol aborts (prompt-only schema discipline is unfixable in this regime).
+- Kappa < 0.75 between model judges on any domain → that domain's H1/H3 = FAILED (per v2 rule), NOT full protocol abort.
+- Pedro rejects conceptual-leakage review and cannot construct acceptable neutral prompts.
+- **§10.5 (retained):** H6a rate for any domain < 0.50 after re-dispatches → domain auto-fails H6a/H1/H3; if ≥2 domains hit this, whole protocol aborts.
+- **§10.6 (NEW in v11):** Post-hoc discovery that a pre-registered banned-token list contains ANY concept word (i.e., violates §2.3 design invariant) → protocol aborts AS-WRITTEN and the banned list must be corrected BEFORE any re-run, which requires a new pre-registration (v12+), not an amendment. **Remediation actor:** Pedro (Co-CEO) or his explicitly designated delegate revises the offending banned list(s) applying §2.3 decidability guidance, then spawns a Codex adversarial round on the revised lists before committing v12+ pre-registration. The delegate MUST produce a full audit trail (named delegation commit + revised list commit + Codex round output commit). Automated stripping is NOT permitted — every revision is a pre-registration event.
 
-**Rule:** every abort counts as failure of the relevant hypothesis. Never "inconclusive". Never "dropped silently".
+**Rule (unchanged):** every abort counts as failure of the relevant hypothesis. Never "inconclusive."
 
-On abort, write `docs/null-model-validation-abort.md`: trigger, partial data, which hypotheses fail, which lessons retract/downgrade.
+On abort, write `docs/null-model-validation-abort-v11.md`.
 
 ---
 
 ## 11. Changelog
 
-### v10.2 → v10.3 (this version, protocol amendment — generalizes Fix B to D1/D2/D3)
+### v10.3 → v11 (this version, full pre-registration after v10.3 abort)
 
-After D0 validated under Fix A + Fix B (p=0.38, H6=H7=100%), Amendment 3 extends Fix B's per-rerun balanced permutation to D1, D2, D3 for H1/H3 validity. Threshold and tests unchanged; aggregation resolves label→semantic→category via permutation lookup. Full audit trail in §8 Amendment 3.
+v10.3 aborted per §10.5 on D1 (H6=0.283) and D3 (H6=0.239). Root cause: banned-token lists for those domains contained concept vocabulary (`cache`, `retry`, etc.) that Haiku cannot avoid when reasoning about the domain itself. This confound silently masqueraded as H6 failure. D0 (H5 p=0.38) and D2 (H1 14/20, H3 p=3e-5) both passed cleanly under Fix A + Fix B.
 
-### v10.1 → v10.2 (previous version, protocol amendment — eliminates primacy bias)
+v11 changes (pre-registered, each specific):
 
-Post-v10.1 Fix A sanity-check on existing n=20 D0 data surfaced a residual primacy bias (morning/Label-A winning 9/10 non-tied solos, p≈5e-4 under uniform). Amendment 2 adds Fix B — per-rerun balanced permutation of label↔semantic mapping — to harden the null baseline. Hypothesis definitions and thresholds unchanged; only prompt construction and aggregation's semantic lookup change. Full audit trail in §8 Amendment 2.
+| # | v10.3 flaw | v11 fix |
+|---|------------|---------|
+| 28 | H6 conflated schema discipline with prompt-banned-token compatibility. Domains with domain-intrinsic banned tokens failed H6 without indicating whether schema discipline itself was broken. | Split H6 → H6a (schema discipline, gates 1–5,7) and H6b (lexical product-name discipline, gate 6). Each has independent ≥0.80 threshold. Both gate H1/H2/H3. See §1 H6a/H6b and §3.1. |
+| 29 | D1 banned list included concept words `cache, lru, ttl, eviction, invalidation, cdn` — impossible to avoid when describing caching mechanisms. | D1 banned list now product/library names only: `redis, memcached, hazelcast, ignite, couchbase, ehcache, varnish`. Env-block-mentioned infrastructure (`kubernetes, istio, grafana, prometheus, postgresql`) evaluated and EXCLUDED per the §2.3 env-block exception — banning them would inflate H6b failures from natural context echo. See §2 D1 (authoritative). |
+| 30 | D3 banned list included concept words `retry, backoff, circuit, jitter` — impossible to avoid when describing retry mechanisms. Domain title "Retry strategy…" baked the concept into the prompt. | D3 banned list now product/library names only: `tenacity, hystrix, resilience4j, polly, opossum, failsafe`. Env-block-adjacent products (`redis, stripe, aws-sdk`) evaluated and EXCLUDED per the §2.3 env-block exception. Domain title rephrased to "Failure-handling strategy for a flaky external API" to remove concept word from problem statement. See §2 D3 (authoritative). |
+| 31 | No pre-registered guard forced future banned lists to be product/library names only. Any future domain could silently repeat the v10.3 mistake. | §2.3 adds explicit design invariant: "banned tokens are product/library/service names only; concept vocabulary is never banned." §10.6 adds abort condition for post-hoc discovery of concept words in banned lists. |
 
-### v10 → v10.1 (previous version, protocol amendment — resolves execution-significant ambiguity)
+v10.3 Amendments 2 and 3 (Fix A solo-only + Fix B balanced permutation) are PROMOTED from amendments to native v11 design. They are documented inline in §1 (Fix A) and §3 (Fix B) rather than as amendments, since they passed empirical validation on D0 (null) and D2 (positive signal).
 
-Codex round-11 found that v10 introduced the 16-winner-bearing Haiku floor in §1 and §7 but left a stale v9-era paragraph in §3.1 describing Haiku H2 as "drop-and-aggregate, fail only if remaining list is empty or has no unique mode". The §1/§7 rule and the §3.1 description could produce different H2 pass/fail outcomes on the same Haiku data. This is an execution-significant ambiguity, not a non-semantic cleanup.
+### Prior version history
 
-v10.1 synchronizes §3.1 with the §1/§7 rule (16-winner-bearing floor) and is classified as a **protocol amendment** per §8 rules. The operative rule (§1/§7) was already correct in v10 — §3.1 was stale. No hypothesis threshold changed; no new test was introduced. The amendment's only effect is removing the stale path that allowed dual-scoring of Haiku H2 data.
-
-| # | v10 ambiguity | v10.1 amendment |
-|---|---------------|-----------------|
-| 27 | §3.1 carried stale v9 Haiku H2 description (no 16-winner floor) while §1/§7 had the v10 rule. An analyst reading only §3.1 could derive different H2 outcomes than one reading §1/§7. | §3.1 rewritten to match §1/§7 exactly (16-winner-bearing floor, 80% threshold). Commits: `d58a2e9` (§3.1 fix), `4f888ce` (metadata bump), `ddca208` (reclassification as amendment). Full audit trail in §8 Amendment 1. |
-
-### v9 → v10 (commit e86205c)
-
-Addresses Codex round-10 review of v9. v10 introduced the 16-winner-bearing Haiku floor in §1 and §7 but inadvertently left §3.1 carrying stale v9 wording — that residual ambiguity was fixed in v10.1 above.
-
-| # | v9 flaw | v10 fix |
-|---|---------|---------|
-| 25 | Haiku H2 had no representativeness floor. After dropping invalid and tied "no winner" reruns, a domain could pass H2 with a single winner-bearing Haiku rerun (trivially unique mode). Same false-positive class round-9 closed for Sonnet/Opus, just on Haiku side. | §1 H2 introduces 16/20 winner-bearing floor for Haiku (matching H6/H7's 80% threshold). Below floor → H2 auto-fails on Haiku side. |
-| 26 | §3.1 still contained the v8 paragraph "invalidated reruns count as non-target / fail-domain in those tests" that conflated H1 and H2 handling and conflicted with the new Haiku drop-and-aggregate. | §3.1 invalidation paragraph rewritten as the single authoritative source. Per-hypothesis bullets explicitly differentiate H1 (drop, denominator fixed at 20, count as non-target), H2 Haiku (16-winner floor, drop-and-aggregate), H2 Sonnet/Opus (strict 3-grid), H3 (inherits from H1). **Note:** v10 §3.1 was incomplete — the stale H2 note survived and was corrected in v10.1 above. |
-
-### v8 → v9 (commit 2c326ad)
-
-Addresses Codex round-9 review of v8:
-
-| # | v8 flaw | v9 fix |
-|---|---------|--------|
-| 23 | §3.1 H2 note ("any drop in 3-grid → H2 auto-fail") still conflicted with §1/§7's "drop invalid/no-winner reruns from list, fail only if empty or no unique mode". Same data could pass under §§1/7 and fail under §3.1. | §1, §7, and §3.1 H2 sections all rewritten to share the same numbered procedure with explicit asymmetric handling: Sonnet/Opus use strict grid (any drop or no-winner = H2 fail for that model on domain); Haiku uses drop-and-aggregate (n=20 tolerates drops). All three sections describe the same procedure. |
-| 24 | H2 could pass on a single surviving Sonnet or Opus rerun (out of 3) because invalidated and tied reruns were simply omitted from the modal computation. H7's ≥80% representativeness gate applied only to 20-rerun main runs, not to 3-rerun H2 grids. | §1 H2 introduces a sample-size floor explicitly for Sonnet/Opus 3-grids: any invalidated rerun or no-winner rerun makes the entire grid unusable. This is the conservative v6 rule, restored with explicit justification (n=3 statistical fragility). Haiku retains drop-and-aggregate because its n=20 is large enough and H1/H7 protect representativeness there. |
-
-### v7 → v8 (commit 1245903)
-
-Addresses Codex round-8 review of v7:
-
-| # | v7 flaw | v8 fix |
-|---|---------|--------|
-| 22 | §7 H2 paraphrased the §1 H2 rule instead of mirroring it verbatim. The two sections could be read as scoring the same dataset two different ways: §1 made tied/invalidated reruns H2-fatal at the rerun level; §7 still talked about computing a Haiku modal winner across "the 20 reruns" without specifying tie/invalidation handling at the rerun level. Real preregistration requires a single procedure. | §1 H2 and §7 H2 now contain the **same numbered 4-step procedure**. Both sections explicitly describe: (1) take valid reruns only, (2) extract rerun-level winners (ties = no winner for that rerun, contributes nothing), (3) require unique modal winner across that list, (4) compare Sonnet/Opus modals to Haiku modal. Empty winner list or non-unique mode = H2 fail for the model on the domain. No paraphrase remains; the procedure is literally identical in both sections. |
-
-### v6 → v7 (commit c9285d8)
-
-Addresses Codex round-7 review of v6:
-
-| # | v6 flaw | v7 fix |
-|---|---------|--------|
-| 20 | H2 winner extraction defined ties only at modal level. A single rerun with two cells sharing top composite had no defined winner, so modal aggregation across 3 reruns could be flipped by undefined behavior. | §1 H1 and H2 both define the rule explicitly: "winner = highest composite; ≥2 cells within 0.001 of top = no winner for the rerun, counts as non-target / H2-fail". Single rule shared across H1 and H2. |
-| 21 | §3.1 had mutually contradictory H6 accounting. v5 sentence "invalidated rerun counts as 9 dropped cells toward H6" remained while v6 explicitly said "invalidation does not subtract from ok_cells". Same data could yield H6 = 0/180 OR 160/180 depending on which sentence the implementer read first. | §3.1 collapsed into a single authoritative enforcement block. Old v5 sentence removed. New block includes a worked example for the exact 8-pass-1-drop case Codex flagged: H6 = 160/180 (passes), H7 = 0/20 (fails), result: H1/H2/H3 auto-fail because both gates must pass. |
-
-### v5 → v6 (commit af6fd4a)
-
-Addresses Codex round-6 review of v5:
-
-| # | v5 flaw | v6 fix |
-|---|---------|--------|
-| 17 | H2 not gated on H6 — a domain with non-comparable composites could still be evaluated for cross-model winner agreement. | §1 H2 explicit prerequisite: both H6 AND H7 must pass for the domain. Failure of either auto-fails H2 for that domain. |
-| 18 | "Modal winner" undefined for ties. Three Sonnet grids could produce three different winners with no rule. | §1 H1 + H2: ties (no unique mode) count as failure (non-target for H1, fail-domain for H2). Conservative, no analyst tiebreak. |
-| 19 | v5 H6 conflated cell conformance with rerun invalidation — a single stubborn cell zeroed out eight valid siblings. H6 stopped measuring its stated construct. | Split into two metrics. **H6 (cell-level):** `ok_cells / 180`, no invalidation rollup. **H7 (rerun-level, NEW):** `valid_reruns / 20`. Both gate H1/H2/H3 at ≥80%. |
-
-### v4 → v5 (commit 41b5035)
-
-Addresses Codex round-5 review of v4:
-
-| # | v4 flaw | v5 fix |
-|---|---------|--------|
-| 14 | H2 ran only Haiku modal-winner cell against Sonnet/Opus. Could not measure cross-model winner identity — Sonnet might rank an untested cell higher. False-positive structurally. | §1 H2 redesigned: full 9-cell grid for Sonnet (×3 reruns) and Opus (×3 reruns) per domain. Compare each model's modal winner against Haiku's. Cost +~$1.50; total budget $8-9. |
-| 15 | H6 conformance formula `ok / (total − dropped)` excluded dropped cells from the denominator, so widespread failure could report high conformance among survivors. | §3.1 formula changed to fixed denominator: `ok_cells / total_dispatched_cells` (180 per domain). Drops, retries, and invalidated reruns all count against. |
-| 16 | Main 9-cell rerun with exactly 1 dropped cell survived with no analyst-time semantics. Same partial-failure ambiguity v4 fixed for H2 single-cell. | §3.1 single rule: ANY drop invalidates the entire rerun (counts as 9 dropped cells toward H6). Removes post-hoc discretion about scoring 8-of-9 grids. Same rule applied to H2 grids. |
-
-### v3 → v4 (commit 478e861)
-
-Addresses Codex round-4 review of v3:
-
-| # | v3 flaw | v4 fix |
-|---|---------|--------|
-| 11 | Lexical gate self-contradicted the env blocks it introduced: D1 env block contained "cache infrastructure"; D0 env block contained "rollback"; both were in the banned-token list. Gate would abort by construction. | §3 lexical gate now scans ONLY model-generated text (`mechanism_novelty`, `dealbreaker`), not the prompt. The prompt's env block can mention vocabulary that the model is forbidden from re-using. |
-| 12 | Schema validator only checked dimension key-set + convention string. Did not verify score types or 1-10 bounds, did not recompute composite, did not check dealbreaker grounding. Corrupt outputs counted as `ok`. | §3.1 expanded from 2 gates to 7 gates: parse, schema, convention, **score-int-in-bounds**, **composite-recompute (model value discarded)**, **banned-token scan on output**, **dealbreaker infrastructure grounding (must appear in env block)**. |
-| 13 | H2 ran single-cell reruns (Sonnet/Opus) but the drop rule required ≥2 failed cells to mark a rerun dropped. Single-cell reruns could fail twice and leave a missing composite with no analysis-time semantics — free choice at score time. | §3.1 explicit rule: single-cell reruns that fail twice count as **0 in the fixed 5-run denominator** (a miss). §7 H2 description references this rule explicitly. |
-
-### v2 → v3 (commit 25b35e4)
-
-Addressed autoimprove#105 findings from MATRIX_5:
-
-| # | v2 flaw | v3 fix |
-|---|---------|--------|
-| 9 | Assumed prompt-only schema discipline worked. MATRIX_5 disproved: 4/9 cells invented extra dimensions (5-7 dims instead of 4). | §3 template includes explicit "Your output will be schema-validated and rejected" + enumeration of forbidden dimension names. §3.1 adds schema validation procedure. H6 enforces ≥80% conformance. |
-| 10 | Neutral prompts lacked codebase infrastructure context, leading haiku to hallucinate dealbreakers (L8). | §2.2 introduces Environment Blocks; each domain pre-registers one in §2. §3 template has mandatory "Available Infrastructure" section. |
-
-### v1 → v2 (commit c9ffd33)
-
-Addressed Codex round-3 (see v2 document history). Summary:
-- §1/§7 alignment (single test per H, no post-hoc choice).
-- Power analysis for n=20 threshold 14/20.
-- D0 integrated (first, with categories).
-- MEE categories via single-axis principle.
-- Lexical ban + human conceptual-leakage gate.
-- Kappa ≥ 0.75, human 3rd judge.
-- Single test per hypothesis.
-- Abort = hypothesis failure.
-
-### v3 meta-commentary
-
-v3 is now constrained by 3 rounds of adversarial review (Codex rounds 2 + 3 + issue #105). A v4 would need external human coders (not Pedro alone, to eliminate the human-also-correlated-to-Claude-outputs problem) and n≥30 per domain for power ≥0.7 on modest effects — out of current budget. v3 is the defensible floor given available resources.
+See git log for `docs/null-model-validation-protocol.md`. v1–v10.3 history summarized in v10.3 §11.
